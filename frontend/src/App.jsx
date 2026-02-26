@@ -7,6 +7,7 @@ import CharadesApp from './pages/CharadesApp';
 import JeopardyApp from './pages/JeopardyApp';
 import TicTacToeApp from './pages/TicTacToeApp';
 import CahootApp from './pages/CahootApp';
+import SeenJeemApp from './pages/SeenJeemApp';
 import Login from './pages/Login';
 import Register from './pages/Register';
 import ProtectedRoute from './components/ProtectedRoute';
@@ -50,6 +51,11 @@ function App() {
                         <Route path="/cahoot" element={
                             <ProtectedRoute gameId="cahoot">
                                 <CahootApp />
+                            </ProtectedRoute>
+                        } />
+                        <Route path="/seenjeem" element={
+                            <ProtectedRoute gameId="seenjeem">
+                                <SeenJeemApp />
                             </ProtectedRoute>
                         } />
                         <Route path="/login" element={<Login />} />

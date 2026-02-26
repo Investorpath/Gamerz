@@ -11,6 +11,7 @@ const { OAuth2Client } = require('google-auth-library');
 const imposterLocations = require('./imposter_locations.json');
 const charadesCategories = require('./charades_words.json');
 const jeopardyQuestions = require('./jeopardy_questions.json');
+const seenjeemQuestions = require('./seenjeem_questions.json');
 const { isAuthenticated, socketAuthenticator, sanitizeInput } = require('./securityMiddleware');
 const rateLimit = require('express-rate-limit');
 
@@ -94,6 +95,9 @@ function initRoom(roomId, gameType = 'trivia') {
         } else if (gameType === 'tictactoe') {
             room.board = Array(9).fill(null);
             room.xIsNext = true;
+        } else if (gameType === 'seenjeem') {
+            room.currentQuestionIndex = -1;
+            room.players = {};
         }
 
         rooms[roomId] = room;
@@ -126,7 +130,7 @@ io.on('connection', (socket) => {
         }
 
         // Room Scoping Authorization (prevent emitting room events if not in room)
-        const roomEvents = ['start_game', 'submit_answer', 'imposter_vote', 'charades_got_it', 'jeopardy_select_question', 'jeopardy_buzz', 'jeopardy_answer', 'tictactoe_move', 'cahoot_start', 'cahoot_submit_answer', 'cahoot_next_question'];
+        const roomEvents = ['start_game', 'submit_answer', 'imposter_vote', 'charades_got_it', 'jeopardy_select_question', 'jeopardy_buzz', 'jeopardy_answer', 'tictactoe_move', 'cahoot_start', 'cahoot_submit_answer', 'cahoot_next_question', 'seenjeem_submit_answer'];
         if (roomEvents.includes(event)) {
             let roomIdArg;
             if (typeof args[0] === 'object' && args[0] !== null) {
@@ -151,7 +155,7 @@ io.on('connection', (socket) => {
     socket.on('join_room', async ({ roomId, playerName, gameType, userId }) => {
         playerName = sanitizeInput(playerName || socket.user?.displayName || 'Unknown');
         // If it's a new room and a premium game, verify the host owns it
-        if (!rooms[roomId] && ['imposter', 'charades', 'jeopardy', 'cahoot'].includes(gameType)) {
+        if (!rooms[roomId] && ['imposter', 'charades', 'jeopardy', 'cahoot', 'seenjeem'].includes(gameType)) {
             if (!userId) {
                 socket.emit('game_error', 'يجب تسجيل الدخول لإنشاء غرفة مميزة.');
                 return;
@@ -233,6 +237,11 @@ io.on('connection', (socket) => {
                     playerO: playerIds[1] ? room.players[playerIds[1]].name : 'Player 2',
                     winner: null
                 });
+            } else if (room.gameType === 'seenjeem') {
+                room.status = 'playing';
+                room.currentQuestionIndex = 0;
+                io.to(roomId).emit('game_status', room.status);
+                startSeenJeemQuestion(roomId);
             }
         }
     });
@@ -483,6 +492,41 @@ io.on('connection', (socket) => {
             playerO: room.players[playerIds[1]].name,
             winner: calculateWinner(room.board)
         });
+    });
+
+    // --- SEEN JEEM SPECIFIC SOCKETS ---
+    socket.on('seenjeem_submit_answer', ({ roomId, textAnswer }) => {
+        const room = rooms[roomId];
+        if (!room || room.status !== 'playing') return;
+
+        const player = room.players[socket.id];
+        if (player && !player.answerSubmitted) {
+
+            const currentQ = seenjeemQuestions[room.currentQuestionIndex];
+            // Check if correct
+            const isCorrect = currentQ.answers.some(a => a.toLowerCase() === textAnswer.trim().toLowerCase());
+
+            player.answerSubmitted = true;
+
+            if (isCorrect) {
+                // Points based on time left (e.g., max 1000)
+                const timeRatio = room.timer / QUESTION_TIMER;
+                const points = Math.max(Math.round(1000 * timeRatio), 200);
+                player.score += points;
+
+                // Notify everyone that someone got it right!
+                io.to(roomId).emit('seenjeem_correct_guess', { playerName: player.name, points });
+            }
+
+            // Update everyone on scores/status
+            io.to(roomId).emit('update_players', Object.values(room.players));
+
+            // Check if all players answered
+            const allAnswered = Object.values(room.players).every(p => p.answerSubmitted);
+            if (allAnswered) {
+                endSeenJeemQuestion(roomId);
+            }
+        }
     });
 
 
@@ -755,6 +799,69 @@ function endCahootQuestion(roomId) {
     io.to(roomId).emit('update_players', Object.values(room.players));
 }
 
+
+// --- SEEN JEEM LOGIC ---
+function startSeenJeemQuestion(roomId) {
+    const room = rooms[roomId];
+    if (!room) return;
+
+    if (room.intervalId) clearInterval(room.intervalId);
+
+    if (room.currentQuestionIndex >= seenjeemQuestions.length) {
+        room.status = 'finished';
+        io.to(roomId).emit('game_status', room.status);
+        io.to(roomId).emit('update_players', Object.values(room.players)); // Final scores
+        return;
+    }
+
+    room.status = 'playing';
+    io.to(roomId).emit('game_status', room.status);
+
+    // Reset answer states
+    Object.values(room.players).forEach(p => p.answerSubmitted = false);
+
+    const currentQ = seenjeemQuestions[room.currentQuestionIndex];
+
+    // Send question WITHOUT the answers array
+    const questionToClient = {
+        question: currentQ.question,
+        category: currentQ.category
+    };
+
+    io.to(roomId).emit('seenjeem_new_question', questionToClient);
+
+    // Start Timer
+    room.timer = QUESTION_TIMER;
+    io.to(roomId).emit('timer', room.timer);
+
+    room.intervalId = setInterval(() => {
+        room.timer--;
+        io.to(roomId).emit('timer', room.timer);
+
+        if (room.timer <= 0) {
+            endSeenJeemQuestion(roomId);
+        }
+    }, 1000);
+}
+
+function endSeenJeemQuestion(roomId) {
+    const room = rooms[roomId];
+    if (!room) return;
+
+    if (room.intervalId) clearInterval(room.intervalId);
+
+    room.status = 'revealing_answer';
+    io.to(roomId).emit('game_status', room.status);
+
+    const currentQ = seenjeemQuestions[room.currentQuestionIndex];
+    // Emit the main correct answer to show everyone
+    io.to(roomId).emit('seenjeem_reveal', currentQ.answers[0]);
+
+    setTimeout(() => {
+        room.currentQuestionIndex++;
+        startSeenJeemQuestion(roomId);
+    }, 4000); // 4 second pause
+}
 
 const JWT_SECRET = process.env.JWT_SECRET || 'super-secret-key-for-dev';
 
