@@ -31,6 +31,10 @@ const authLimiter = rateLimit({
 });
 app.use('/api/auth/', authLimiter);
 
+app.get('/', (req, res) => {
+    res.send('Games Hub Backend is running!');
+});
+
 const server = http.createServer(app);
 
 const io = new Server(server, {
