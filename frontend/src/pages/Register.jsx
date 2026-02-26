@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { GoogleLogin } from '@react-oauth/google';
+import AppleSignin from 'react-apple-signin-auth';
 
 function Register() {
     const [username, setUsername] = useState('');
@@ -9,7 +10,7 @@ function Register() {
     const [password, setPassword] = useState('');
     const [error, setError] = useState('');
     const [isLoading, setIsLoading] = useState(false);
-    const { register, loginWithGoogle } = useAuth();
+    const { register, loginWithGoogle, loginWithApple } = useAuth();
     const navigate = useNavigate();
 
     const handleSubmit = async (e) => {
@@ -31,6 +32,23 @@ function Register() {
         setError('');
         try {
             await loginWithGoogle(credentialResponse.credential);
+            navigate('/');
+        } catch (err) {
+            setError(err.message);
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    const handleAppleSuccess = async (response) => {
+        if (!response.authorization || !response.authorization.id_token) {
+            setError('Apple Login Failed: Missing token');
+            return;
+        }
+        setIsLoading(true);
+        setError('');
+        try {
+            await loginWithApple(response.authorization.id_token);
             navigate('/');
         } catch (err) {
             setError(err.message);
@@ -120,13 +138,29 @@ function Register() {
                         </div>
                     </div>
 
-                    <div className="mt-6 flex justify-center">
+                    <div className="mt-6 flex flex-col gap-4 justify-center items-center">
                         <GoogleLogin
                             onSuccess={handleGoogleSuccess}
                             onError={() => setError('Google Registration Failed')}
                             useOneTap
                             theme="filled_black"
                             shape="pill"
+                        />
+                        <AppleSignin
+                            authOptions={{
+                                clientId: import.meta.env.VITE_APPLE_CLIENT_ID || 'com.gameshub.app',
+                                scope: 'email name',
+                                redirectURI: window.location.origin,
+                                state: 'state',
+                                nonce: 'nonce',
+                                usePopup: true,
+                            }}
+                            uiType="dark"
+                            className="apple-auth-btn"
+                            noDefaultStyle={false}
+                            buttonExtraChildren="المتابعة عبر Apple"
+                            onSuccess={handleAppleSuccess}
+                            onError={(error) => setError('Apple Login Failed')}
                         />
                     </div>
                 </div>

@@ -83,6 +83,21 @@ export const AuthProvider = ({ children }) => {
         return data;
     };
 
+    const loginWithApple = async (credential) => {
+        const res = await fetch(`${BACKEND_URL}/api/auth/apple`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ credential })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Apple Login failed');
+
+        setToken(data.token);
+        setUser(data.user);
+        localStorage.setItem('trivia_token', data.token);
+        return data;
+    };
+
     const logout = () => {
         setToken(null);
         setUser(null);
@@ -118,7 +133,7 @@ export const AuthProvider = ({ children }) => {
     };
 
     return (
-        <AuthContext.Provider value={{ user, token, isAdmin, loading, login, loginWithGoogle, register, logout, mockCheckout }}>
+        <AuthContext.Provider value={{ user, token, isAdmin, loading, login, loginWithGoogle, loginWithApple, register, logout, mockCheckout }}>
             {children}
         </AuthContext.Provider>
     );

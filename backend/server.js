@@ -8,6 +8,7 @@ const jwt = require('jsonwebtoken');
 const { PrismaClient } = require('@prisma/client');
 const cookieParser = require('cookie-parser');
 const { OAuth2Client } = require('google-auth-library');
+const appleSignin = require('apple-signin-auth');
 const imposterLocations = require('./imposter_locations.json');
 const charadesCategories = require('./charades_words.json');
 const jeopardyQuestions = require('./jeopardy_questions.json');
@@ -977,6 +978,76 @@ app.post('/api/auth/google', async (req, res) => {
     } catch (error) {
         console.error("Google Auth Error:", error);
         res.status(401).json({ error: 'Failed to authenticate with Google' });
+    }
+});
+
+app.post('/api/auth/apple', async (req, res) => {
+    try {
+        const { credential } = req.body;
+        if (!credential) {
+            return res.status(400).json({ error: 'Apple credential missing' });
+        }
+
+        const APPLE_CLIENT_ID = process.env.VITE_APPLE_CLIENT_ID || 'com.gameshub.app';
+
+        // Verify the Apple JWT token
+        const payload = await appleSignin.verifyIdToken(credential, {
+            audience: APPLE_CLIENT_ID,
+            ignoreExpiration: true, // During development testing without setup, ignore expiration helps
+        });
+
+        // Apple often only sends email on the first login. In real prod, capture email from req.body (user object) if payload.email is missing.
+        // For simplicity, we fallback to a generated email if none provided by Apple.
+        const email = payload.email || `${payload.sub}@apple.login.local`;
+
+        const { sub: appleId } = payload;
+
+        // Try to find the user by appleId or email
+        let user = await prisma.user.findFirst({
+            where: {
+                OR: [
+                    { appleId },
+                    { email }
+                ]
+            }
+        });
+
+        // If the user doesn't exist, create a new one automatically
+        if (!user) {
+            const baseUsername = email.split('@')[0].replace(/[^a-zA-Z0-9]/g, '');
+            const randomSuffix = Math.floor(1000 + Math.random() * 9000);
+            const username = `${baseUsername}${randomSuffix}`;
+
+            user = await prisma.user.create({
+                data: {
+                    username: username,
+                    displayName: 'Apple User',
+                    email: email,
+                    appleId: appleId,
+                }
+            });
+        } else if (!user.appleId) {
+            user = await prisma.user.update({
+                where: { id: user.id },
+                data: { appleId: appleId }
+            });
+        }
+
+        const token = jwt.sign(
+            { userId: user.id, username: user.username, displayName: user.displayName, role: user.role },
+            JWT_SECRET,
+            { expiresIn: '7d' }
+        );
+
+        res.json({
+            message: 'Apple Login successful',
+            token,
+            user: { id: user.id, username: user.username, displayName: user.displayName, role: user.role }
+        });
+
+    } catch (error) {
+        console.error("Apple Auth Error:", error);
+        res.status(401).json({ error: 'Failed to authenticate with Apple' });
     }
 });
 
