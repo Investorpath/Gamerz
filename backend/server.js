@@ -12,7 +12,7 @@ const imposterLocations = require('./imposter_locations.json');
 const charadesCategories = require('./charades_words.json');
 const jeopardyQuestions = require('./jeopardy_questions.json');
 const seenjeemQuestions = require('./seenjeem_questions.json');
-const { isAuthenticated, socketAuthenticator, sanitizeInput } = require('./securityMiddleware');
+const { isAuthenticated, socketAuthenticator, sanitizeInput, isAdmin } = require('./securityMiddleware');
 const rateLimit = require('express-rate-limit');
 
 const prisma = new PrismaClient();
@@ -881,8 +881,8 @@ app.post('/api/auth/register', async (req, res) => {
             data: { username, password: hashedPassword, displayName }
         });
 
-        const token = jwt.sign({ userId: user.id, username: user.username, displayName: user.displayName }, JWT_SECRET, { expiresIn: '7d' });
-        res.json({ message: 'User created successfully', token, user: { id: user.id, username: user.username, displayName: user.displayName } });
+        const token = jwt.sign({ userId: user.id, username: user.username, displayName: user.displayName, role: user.role }, JWT_SECRET, { expiresIn: '7d' });
+        res.json({ message: 'User created successfully', token, user: { id: user.id, username: user.username, displayName: user.displayName, role: user.role } });
     } catch (error) {
         console.error(error);
         res.status(500).json({ error: 'Internal server error' });
@@ -898,8 +898,8 @@ app.post('/api/auth/login', async (req, res) => {
         const isMatch = await bcrypt.compare(password, user.password);
         if (!isMatch) return res.status(400).json({ error: 'Invalid credentials' });
 
-        const token = jwt.sign({ userId: user.id, username: user.username, displayName: user.displayName }, JWT_SECRET, { expiresIn: '7d' });
-        res.json({ message: 'Login successful', token, user: { id: user.id, username: user.username, displayName: user.displayName } });
+        const token = jwt.sign({ userId: user.id, username: user.username, displayName: user.displayName, role: user.role }, JWT_SECRET, { expiresIn: '7d' });
+        res.json({ message: 'Login successful', token, user: { id: user.id, username: user.username, displayName: user.displayName, role: user.role } });
     } catch (error) {
         console.error(error);
         res.status(500).json({ error: 'Internal server error' });
@@ -963,7 +963,7 @@ app.post('/api/auth/google', async (req, res) => {
 
         // Issue our standard platform JWT
         const token = jwt.sign(
-            { userId: user.id, username: user.username, displayName: user.displayName },
+            { userId: user.id, username: user.username, displayName: user.displayName, role: user.role },
             JWT_SECRET,
             { expiresIn: '7d' }
         );
@@ -971,7 +971,7 @@ app.post('/api/auth/google', async (req, res) => {
         res.json({
             message: 'Google Login successful',
             token,
-            user: { id: user.id, username: user.username, displayName: user.displayName }
+            user: { id: user.id, username: user.username, displayName: user.displayName, role: user.role }
         });
 
     } catch (error) {
@@ -998,6 +998,7 @@ app.get('/api/auth/me', async (req, res) => {
             id: user.id,
             username: user.username,
             displayName: user.displayName,
+            role: user.role,
             ownedGames: user.ownerships.filter(o => new Date(o.expiresAt) > new Date()).map(o => o.gameId)
         });
     } catch (error) {
@@ -1061,6 +1062,132 @@ app.post('/api/checkout/mock', async (req, res) => {
     } catch (error) {
         console.error('Checkout error:', error);
         res.status(500).json({ error: 'Checkout failed' });
+    }
+});
+
+// --- ADMIN ROUTES ---
+
+app.get('/api/admin/stats', isAdmin, async (req, res) => {
+    try {
+        const totalUsers = await prisma.user.count();
+        const totalPurchases = await prisma.gameOwnership.count();
+
+        // Count active rooms in memory
+        const activeRoomsCount = Object.keys(rooms).length;
+
+        res.json({
+            totalUsers,
+            totalPurchases,
+            activeRoomsCount
+        });
+    } catch (error) {
+        console.error('Stats error:', error);
+        res.status(500).json({ error: 'Failed to fetch admin stats' });
+    }
+});
+
+app.get('/api/admin/users', isAdmin, async (req, res) => {
+    try {
+        const _users = await prisma.user.findMany({
+            select: {
+                id: true,
+                username: true,
+                displayName: true,
+                email: true,
+                role: true,
+                createdAt: true,
+                _count: {
+                    select: { ownerships: true }
+                }
+            },
+            orderBy: { createdAt: 'desc' }
+        });
+        res.json(_users);
+    } catch (error) {
+        console.error('Users error:', error);
+        res.status(500).json({ error: 'Failed to fetch users' });
+    }
+});
+
+app.post('/api/admin/users/:id/role', isAdmin, async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { role } = req.body;
+
+        if (!['USER', 'ADMIN'].includes(role)) {
+            return res.status(400).json({ error: 'Invalid role' });
+        }
+
+        const updatedUser = await prisma.user.update({
+            where: { id },
+            data: { role }
+        });
+
+        res.json({ message: 'Role updated', user: updatedUser });
+    } catch (error) {
+        console.error('Role update error:', error);
+        res.status(500).json({ error: 'Failed to update user role' });
+    }
+});
+
+app.delete('/api/admin/users/:id', isAdmin, async (req, res) => {
+    try {
+        const { id } = req.params;
+
+        // Prevent self-deletion
+        if (id === req.user.userId) {
+            return res.status(400).json({ error: 'Cannot delete your own admin account' });
+        }
+
+        await prisma.user.delete({ where: { id } });
+        res.json({ message: 'User deleted/banned successfully' });
+    } catch (error) {
+        console.error('User delete error:', error);
+        res.status(500).json({ error: 'Failed to delete user' });
+    }
+});
+
+app.get('/api/admin/rooms', isAdmin, (req, res) => {
+    try {
+        const liveRooms = Object.entries(rooms).map(([roomId, roomData]) => ({
+            id: roomId,
+            gameType: roomData.gameType,
+            status: roomData.status,
+            hostId: roomData.hostId,
+            playerCount: Object.keys(roomData.players).length
+        }));
+        res.json(liveRooms);
+    } catch (error) {
+        console.error('Rooms fetch error:', error);
+        res.status(500).json({ error: 'Failed to fetch active rooms' });
+    }
+});
+
+app.delete('/api/admin/rooms/:id', isAdmin, (req, res) => {
+    try {
+        const { id } = req.params;
+        const room = rooms[id];
+
+        if (!room) {
+            return res.status(404).json({ error: 'Room not found or already closed' });
+        }
+
+        // Inform clients to leave
+        io.to(id).emit('game_error', 'تم إنهاء الغرفة بواسطة مسؤول النظام (Admin).');
+
+        if (room.intervalId) clearInterval(room.intervalId);
+        if (room.cahootTimeout) clearTimeout(room.cahootTimeout);
+
+        // Force disconnect all sockets in room
+        io.in(id).socketsJoin('kicked'); // Move them somewhere else or just disconnect
+        io.in(id).disconnectSockets(true);
+
+        delete rooms[id];
+
+        res.json({ message: 'Room forcefully closed' });
+    } catch (error) {
+        console.error('Room close error:', error);
+        res.status(500).json({ error: 'Failed to close room' });
     }
 });
 

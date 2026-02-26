@@ -5,7 +5,7 @@ import PurchaseModal from '../components/PurchaseModal';
 import { useAuth } from '../context/AuthContext';
 
 function Home() {
-    const { user, logout } = useAuth();
+    const { user, logout, isAdmin } = useAuth();
     const [selectedGameToPurchase, setSelectedGameToPurchase] = useState(null);
     const games = [
         {
@@ -16,7 +16,11 @@ function Home() {
             to: "/trivia",
             active: true,
             icon: "🧠",
-            price: "مجاناً"
+            price: "مجاناً",
+            previewImages: [
+                "https://placehold.co/600x400/1e1b4b/a78bfa?text=Trivia+Gameplay",
+                "https://placehold.co/600x400/1e1b4b/a78bfa?text=Trivia+Leaderboard"
+            ]
         },
         {
             id: "imposter",
@@ -26,7 +30,11 @@ function Home() {
             to: "/imposter",
             active: true,
             icon: "🕵️‍♂️",
-            price: "$2.99"
+            price: "$2.99",
+            previewImages: [
+                "https://placehold.co/600x400/0f172a/3b82f6?text=Imposter+Lobby",
+                "https://placehold.co/600x400/0f172a/3b82f6?text=Imposter+Role+Reveal"
+            ]
         },
         {
             id: "charades",
@@ -36,7 +44,11 @@ function Home() {
             to: "/charades",
             active: true,
             icon: "🎭",
-            price: "$1.99"
+            price: "$1.99",
+            previewImages: [
+                "https://placehold.co/600x400/450a0a/fcd34d?text=Charades+Word",
+                "https://placehold.co/600x400/450a0a/fcd34d?text=Charades+Scoreboard"
+            ]
         },
         {
             id: "jeopardy",
@@ -46,7 +58,11 @@ function Home() {
             to: "/jeopardy",
             active: true,
             icon: "📺",
-            price: "$4.99"
+            price: "$4.99",
+            previewImages: [
+                "https://placehold.co/600x400/172554/fef08a?text=Jeopardy+Board",
+                "https://placehold.co/600x400/172554/fef08a?text=Jeopardy+Question"
+            ]
         },
         {
             id: "tictactoe",
@@ -56,7 +72,10 @@ function Home() {
             to: "/tictactoe",
             active: true,
             icon: "❌⭕",
-            price: "مجاناً"
+            price: "مجاناً",
+            previewImages: [
+                "https://placehold.co/600x400/1e293b/38bdf8?text=Tic+Tac+Toe"
+            ]
         },
         {
             id: "cahoot",
@@ -66,7 +85,11 @@ function Home() {
             to: "/cahoot",
             active: true,
             icon: "🚀",
-            price: "$3.99"
+            price: "$3.99",
+            previewImages: [
+                "https://placehold.co/600x400/312e81/fbbf24?text=Cahoot+Question",
+                "https://placehold.co/600x400/312e81/fbbf24?text=Cahoot+Podium"
+            ]
         },
         {
             id: "seenjeem",
@@ -76,7 +99,11 @@ function Home() {
             to: "/seenjeem",
             active: true,
             icon: "✍️",
-            price: "$1.99"
+            price: "$1.99",
+            previewImages: [
+                "https://placehold.co/600x400/4c1d95/f472b6?text=Seen+Jeem+Typing",
+                "https://placehold.co/600x400/4c1d95/f472b6?text=Seen+Jeem+Results"
+            ]
         }
     ];
 
@@ -89,7 +116,11 @@ function Home() {
             isPackage: true,
             icon: "🎉",
             price: "$9.99",
-            originalPrice: "$13.96"
+            originalPrice: "$13.96",
+            previewImages: [
+                "https://placehold.co/800x400/451a03/fcd34d?text=Party+Bundle+Games",
+                "https://placehold.co/800x400/451a03/fcd34d?text=Save+Big"
+            ]
         }
     ];
 
@@ -117,6 +148,14 @@ function Home() {
                         {user ? (
                             <div className="flex items-center gap-4">
                                 <span className="text-slate-300 font-bold hidden md:inline">مرحباً، {user.displayName}</span>
+                                {isAdmin && (
+                                    <Link
+                                        to="/admin"
+                                        className="bg-gradient-to-r from-red-600/80 to-orange-600/80 hover:from-red-500 hover:to-orange-500 text-white font-bold py-2 px-4 rounded-xl shadow-[0_0_15px_rgba(239,68,68,0.4)] transition-all border border-red-400/30 flex items-center gap-2"
+                                    >
+                                        <span>🛡️</span> لوحة الإدارة
+                                    </Link>
+                                )}
                                 <button
                                     onClick={logout}
                                     className="bg-slate-800 hover:bg-red-900/40 text-red-400 border border-slate-700 hover:border-red-500/50 px-4 py-2 rounded-xl text-sm font-bold transition-colors"

@@ -41,11 +41,21 @@ const isAuthenticated = (req, res, next) => {
     const token = authHeader.split(' ')[1];
     try {
         const decoded = jwt.verify(token, JWT_SECRET);
-        req.user = decoded; // { userId, username, displayName }
+        req.user = decoded; // { userId, username, displayName, role }
         next();
     } catch (error) {
         return res.status(401).json({ error: 'Unauthorized: Invalid token' });
     }
+};
+
+const isAdmin = (req, res, next) => {
+    isAuthenticated(req, res, () => {
+        if (req.user && req.user.role === 'ADMIN') {
+            next();
+        } else {
+            return res.status(403).json({ error: 'Forbidden: Admin access only' });
+        }
+    });
 };
 
 // Socket.IO Middleware
@@ -65,6 +75,7 @@ const socketAuthenticator = (socket, next) => {
 
 module.exports = {
     isAuthenticated,
+    isAdmin,
     socketAuthenticator,
     sanitizeInput,
     profanityFilter,

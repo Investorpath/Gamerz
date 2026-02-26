@@ -64,6 +64,23 @@ function PurchaseModal({ isOpen, onClose, game }) {
                         <h3 className="text-2xl font-bold mb-2">{game.title}</h3>
                         <p className="text-slate-400 mb-6 text-sm">{game.description}</p>
 
+                        {game.previewImages && game.previewImages.length > 0 && (
+                            <div className="w-full mb-6">
+                                <h4 className="text-slate-400 font-bold mb-3 text-sm text-right pl-2">نظرة عامة على اللعبة:</h4>
+                                <div className="flex overflow-x-auto gap-3 pb-2 custom-scrollbar snap-x snap-mandatory rounded-xl dir-rtl">
+                                    {game.previewImages.map((img, idx) => (
+                                        <img
+                                            key={idx}
+                                            src={img}
+                                            alt={`${game.title} preview ${idx + 1}`}
+                                            className="w-56 h-36 object-cover rounded-xl shadow-md border border-slate-700 snap-center shrink-0 bg-slate-800"
+                                            loading="lazy"
+                                        />
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+
                         {game.isPackage && (
                             <div className="bg-amber-900/20 border border-amber-500/30 rounded-xl p-3 mb-6 w-full text-right">
                                 <h4 className="text-amber-400 font-bold mb-2 text-sm">تتضمن هذه الباقة:</h4>

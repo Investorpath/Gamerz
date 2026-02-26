@@ -17,6 +17,7 @@ model User {
   displayName String
   email       String?         @unique
   googleId    String?         @unique
+  role        String          @default("USER")
   createdAt   DateTime        @default(now())
   ownerships  GameOwnership[]
 }

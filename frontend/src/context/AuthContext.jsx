@@ -8,6 +8,7 @@ export const AuthProvider = ({ children }) => {
     const [user, setUser] = useState(null);
     const [token, setToken] = useState(localStorage.getItem('trivia_token') || null);
     const [loading, setLoading] = useState(true);
+    const isAdmin = user?.role === 'ADMIN';
 
     // Re-fetch user on load if token exists
     useEffect(() => {
@@ -117,7 +118,7 @@ export const AuthProvider = ({ children }) => {
     };
 
     return (
-        <AuthContext.Provider value={{ user, token, loading, login, loginWithGoogle, register, logout, mockCheckout }}>
+        <AuthContext.Provider value={{ user, token, isAdmin, loading, login, loginWithGoogle, register, logout, mockCheckout }}>
             {children}
         </AuthContext.Provider>
     );
