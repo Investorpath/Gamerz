@@ -1,3 +1,4 @@
+require('dotenv').config();
 const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
@@ -16,6 +17,7 @@ const seenjeemQuestions = require('./seenjeem_questions.json');
 const doubleScenarios = require('./double_scenarios.json');
 const { isAuthenticated, socketAuthenticator, sanitizeInput, isAdmin } = require('./securityMiddleware');
 const rateLimit = require('express-rate-limit');
+const { sendWelcomeEmail, sendPurchaseConfirmationEmail } = require('./emailService');
 
 const prisma = new PrismaClient();
 const app = express();
@@ -1028,6 +1030,14 @@ app.post('/api/auth/register', async (req, res) => {
         });
 
         const token = jwt.sign({ userId: user.id, username: user.username, displayName: user.displayName, role: user.role }, JWT_SECRET, { expiresIn: '7d' });
+
+        // Send welcome email
+        if (username.includes('@')) {
+            sendWelcomeEmail(username, displayName);
+        } else if (user.email) {
+            sendWelcomeEmail(user.email, displayName);
+        }
+
         res.json({ message: 'User created successfully', token, user: { id: user.id, username: user.username, displayName: user.displayName, role: user.role } });
     } catch (error) {
         console.error(error);
@@ -1098,6 +1108,8 @@ app.post('/api/auth/google', async (req, res) => {
                     // password is intentionally null for Google-only signups
                 }
             });
+            // Send welcome email for new Google user
+            sendWelcomeEmail(email, name || 'Google User');
         } else if (!user.googleId) {
             // If user exists by email but hasn't linked Google yet, link it now
             user = await prisma.user.update({
@@ -1170,6 +1182,8 @@ app.post('/api/auth/apple', async (req, res) => {
                     appleId: appleId,
                 }
             });
+            // Send welcome email for new Apple user
+            sendWelcomeEmail(email, 'Apple User');
         } else if (!user.appleId) {
             user = await prisma.user.update({
                 where: { id: user.id },
@@ -1287,6 +1301,16 @@ app.post('/api/checkout/mock', async (req, res) => {
                 }
             });
         }));
+
+        // Send purchase confirmation email
+        const userWithEmail = await prisma.user.findUnique({ where: { id: decoded.userId } });
+        if (userWithEmail && (userWithEmail.email || userWithEmail.username.includes('@'))) {
+            sendPurchaseConfirmationEmail(
+                userWithEmail.email || userWithEmail.username,
+                userWithEmail.displayName,
+                gamesToUnlock
+            );
+        }
 
         res.json({ message: 'Purchase successful (Mock)', gamesUnlocked: gamesToUnlock });
     } catch (error) {
