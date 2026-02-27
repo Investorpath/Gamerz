@@ -104,12 +104,13 @@ export const AuthProvider = ({ children }) => {
         localStorage.removeItem('trivia_token');
     };
 
-    const mockCheckout = async ({ gameId, packageId }) => {
+    const mockCheckout = async ({ gameId, packageId, selectedGames }) => {
         if (!token) throw new Error("Not authenticated");
 
         const payload = {};
         if (gameId) payload.gameId = gameId;
         if (packageId) payload.packageId = packageId;
+        if (selectedGames) payload.selectedGames = selectedGames;
 
         const res = await fetch(`${BACKEND_URL}/api/checkout/mock`, {
             method: 'POST',

@@ -130,6 +130,7 @@ function Home() {
             description: "شاملة لأربعة ألعاب مميزة: المحتال، بدون كلام، كاهوت، وسؤال وجواب. الخيار الأفضل لتجمعات الأصدقاء والعائلة!",
             tags: ["باقة توفيرية", "٤ ألعاب"],
             isPackage: true,
+            active: true,
             icon: "🎉",
             price: "$9.99",
             originalPrice: "$13.96",
@@ -145,6 +146,7 @@ function Home() {
             tags: ["باقة مرنة", "٣ ألعاب"],
             isPackage: true,
             isDynamic: true,
+            active: true,
             targetCount: 3,
             icon: "🛍️",
             price: "$6.99",
@@ -157,6 +159,7 @@ function Home() {
             tags: ["باقة مرنة", "٥ ألعاب"],
             isPackage: true,
             isDynamic: true,
+            active: true,
             targetCount: 5,
             icon: "💎",
             price: "$9.99",
@@ -168,6 +171,7 @@ function Home() {
             description: "افتح جميع الألعاب المميزة بضغطة زر واحدة واحصل على تجربة اللعب الكاملة!",
             tags: ["الفئة الذهبية", "كل الألعاب"],
             isPackage: true,
+            active: true,
             isDynamic: false,
             icon: "👑",
             price: "$12.99",
