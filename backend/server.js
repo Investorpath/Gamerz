@@ -5,21 +5,17 @@ const { Server } = require('socket.io');
 const cors = require('cors');
 const questions = require('./questions.json');
 const bcrypt = require('bcryptjs');
-const jwt = require('jsonwebtoken');
-const { PrismaClient } = require('@prisma/client');
+const { admin, db, auth } = require('./firebaseAdmin');
 const cookieParser = require('cookie-parser');
-const { OAuth2Client } = require('google-auth-library');
 const appleSignin = require('apple-signin-auth');
 const imposterLocations = require('./imposter_locations.json');
-const charadesCategories = require('./charades_words.json');
+const charadesWords = require('./charades_words.json');
 const jeopardyQuestions = require('./jeopardy_questions.json');
 const seenjeemQuestions = require('./seenjeem_questions.json');
 const doubleScenarios = require('./double_scenarios.json');
 const { isAuthenticated, socketAuthenticator, sanitizeInput, isAdmin } = require('./securityMiddleware');
 const rateLimit = require('express-rate-limit');
 const { sendWelcomeEmail, sendPurchaseConfirmationEmail } = require('./emailService');
-
-const prisma = new PrismaClient();
 const app = express();
 app.use(cors());
 app.use(express.json());
@@ -171,11 +167,18 @@ io.on('connection', (socket) => {
                 socket.emit('game_error', 'يجب تسجيل الدخول لإنشاء غرفة مميزة.');
                 return;
             }
-            const user = await prisma.user.findUnique({
-                where: { id: userId },
-                include: { ownerships: true }
+
+            // Check ownership in Firestore
+            const ownershipSnap = await db.collection('ownerships')
+                .where('userId', '==', userId)
+                .where('gameId', '==', gameType)
+                .get();
+
+            const ownsGame = !ownershipSnap.empty && ownershipSnap.docs.some(doc => {
+                const data = doc.data();
+                return new Date(data.expiresAt) > new Date();
             });
-            const ownsGame = user?.ownerships.some(o => o.gameId === gameType && new Date(o.expiresAt) > new Date());
+
             if (!ownsGame) {
                 socket.emit('game_error', 'يجب عليك شراء هذه اللعبة لإنشاء غرفة.');
                 return;
@@ -185,15 +188,16 @@ io.on('connection', (socket) => {
         socket.join(roomId);
         initRoom(roomId, gameType || 'trivia');
 
-        // Track room in Database for IDOR / expiration
+        // Track room in Firestore for IDOR / expiration
         try {
-            await prisma.room.upsert({
-                where: { id: roomId },
-                update: { lastActive: new Date() },
-                create: { id: roomId, gameType: gameType || 'trivia', hostId: socket.user?.userId || userId }
-            });
+            await db.collection('rooms').doc(roomId).set({
+                id: roomId,
+                gameType: gameType || 'trivia',
+                hostId: socket.user?.userId || userId,
+                lastActive: admin.firestore.FieldValue.serverTimestamp()
+            }, { merge: true });
         } catch (e) {
-            console.error('Error tracking room in DB', e);
+            console.error('Error tracking room in Firestore', e);
         }
 
         // Set host if first player
@@ -631,16 +635,17 @@ io.on('connection', (socket) => {
 setInterval(async () => {
     try {
         const threshold = new Date(Date.now() - 24 * 60 * 60 * 1000);
-        const deletedRooms = await prisma.room.deleteMany({
-            where: {
-                lastActive: {
-                    lt: threshold
-                }
-            }
+        const roomsRef = db.collection('rooms');
+        const snapshot = await roomsRef.where('lastActive', '<', threshold).get();
+
+        if (snapshot.empty) return;
+
+        const batch = db.batch();
+        snapshot.docs.forEach(doc => {
+            batch.delete(doc.ref);
         });
-        if (deletedRooms.count > 0) {
-            console.log(`Cleaned up ${deletedRooms.count} inactive rooms from DB.`);
-        }
+        await batch.commit();
+        console.log(`Cleaned up ${snapshot.size} inactive rooms from Firestore.`);
     } catch (e) {
         console.error('Failed to cleanup old rooms', e);
     }
@@ -1236,16 +1241,10 @@ app.get('/api/auth/me', async (req, res) => {
 });
 
 // Mock Payment Route (Simulates Stripe Checkout)
-app.post('/api/checkout/mock', async (req, res) => {
-    const authHeader = req.headers.authorization;
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
-        return res.status(401).json({ error: 'Unauthorized' });
-    }
-
+app.post('/api/checkout/mock', isAuthenticated, async (req, res) => {
     try {
-        const token = authHeader.split(' ')[1];
-        const decoded = jwt.verify(token, JWT_SECRET);
         const { gameId, packageId, selectedGames } = req.body;
+        const userId = req.user.userId;
 
         if (!gameId && !packageId) {
             return res.status(400).json({ error: 'gameId or packageId is required' });
@@ -1271,43 +1270,37 @@ app.post('/api/checkout/mock', async (req, res) => {
             gamesToUnlock = [gameId];
         }
 
-        // Process all games in parallel
+        // Process all games in parallel with Firestore
+        const batch = db.batch();
         await Promise.all(gamesToUnlock.map(async (gId) => {
-            const existingOwnership = await prisma.gameOwnership.findUnique({
-                where: { userId_gameId: { userId: decoded.userId, gameId: gId } }
-            });
+            const ownershipId = `${userId}_${gId}`;
+            const ownershipRef = db.collection('ownerships').doc(ownershipId);
+            const doc = await ownershipRef.get();
 
             let newExpiresAt = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000); // +7 days
 
-            if (existingOwnership && existingOwnership.expiresAt > now) {
-                // Extend the expiration date by 7 days from the *current expiration date*
-                newExpiresAt = new Date(existingOwnership.expiresAt.getTime() + 7 * 24 * 60 * 60 * 1000);
+            if (doc.exists) {
+                const currentExpiresAt = doc.data().expiresAt.toDate ? doc.data().expiresAt.toDate() : new Date(doc.data().expiresAt);
+                if (currentExpiresAt > now) {
+                    newExpiresAt = new Date(currentExpiresAt.getTime() + 7 * 24 * 60 * 60 * 1000);
+                }
             }
 
-            await prisma.gameOwnership.upsert({
-                where: {
-                    userId_gameId: {
-                        userId: decoded.userId,
-                        gameId: gId
-                    }
-                },
-                update: {
-                    expiresAt: newExpiresAt
-                },
-                create: {
-                    userId: decoded.userId,
-                    gameId: gId,
-                    expiresAt: newExpiresAt
-                }
-            });
+            batch.set(ownershipRef, {
+                userId,
+                gameId: gId,
+                expiresAt: admin.firestore.Timestamp.fromDate(newExpiresAt),
+                purchasedAt: admin.firestore.FieldValue.serverTimestamp()
+            }, { merge: true });
         }));
 
+        await batch.commit();
+
         // Send purchase confirmation email
-        const userWithEmail = await prisma.user.findUnique({ where: { id: decoded.userId } });
-        if (userWithEmail && (userWithEmail.email || userWithEmail.username.includes('@'))) {
+        if (req.user.email) {
             sendPurchaseConfirmationEmail(
-                userWithEmail.email || userWithEmail.username,
-                userWithEmail.displayName,
+                req.user.email,
+                req.user.displayName,
                 gamesToUnlock
             );
         }
@@ -1323,15 +1316,13 @@ app.post('/api/checkout/mock', async (req, res) => {
 
 app.get('/api/admin/stats', isAdmin, async (req, res) => {
     try {
-        const totalUsers = await prisma.user.count();
-        const totalPurchases = await prisma.gameOwnership.count();
-
-        // Count active rooms in memory
+        const usersSnap = await db.collection('users').count().get();
+        const ownershipsSnap = await db.collection('ownerships').count().get();
         const activeRoomsCount = Object.keys(rooms).length;
 
         res.json({
-            totalUsers,
-            totalPurchases,
+            totalUsers: usersSnap.data().count,
+            totalPurchases: ownershipsSnap.data().count,
             activeRoomsCount
         });
     } catch (error) {
@@ -1342,21 +1333,17 @@ app.get('/api/admin/stats', isAdmin, async (req, res) => {
 
 app.get('/api/admin/users', isAdmin, async (req, res) => {
     try {
-        const _users = await prisma.user.findMany({
-            select: {
-                id: true,
-                username: true,
-                displayName: true,
-                email: true,
-                role: true,
-                createdAt: true,
-                _count: {
-                    select: { ownerships: true }
-                }
-            },
-            orderBy: { createdAt: 'desc' }
-        });
-        res.json(_users);
+        const usersSnap = await db.collection('users').get();
+        const userList = await Promise.all(usersSnap.docs.map(async doc => {
+            const data = doc.data();
+            const ownershipsCount = await db.collection('ownerships').where('userId', '==', doc.id).count().get();
+            return {
+                id: doc.id,
+                ...data,
+                ownershipsCount: ownershipsCount.data().count
+            };
+        }));
+        res.json(userList);
     } catch (error) {
         console.error('Users error:', error);
         res.status(500).json({ error: 'Failed to fetch users' });
@@ -1372,12 +1359,8 @@ app.post('/api/admin/users/:id/role', isAdmin, async (req, res) => {
             return res.status(400).json({ error: 'Invalid role' });
         }
 
-        const updatedUser = await prisma.user.update({
-            where: { id },
-            data: { role }
-        });
-
-        res.json({ message: 'Role updated', user: updatedUser });
+        await db.collection('users').doc(id).update({ role });
+        res.json({ message: 'Role updated' });
     } catch (error) {
         console.error('Role update error:', error);
         res.status(500).json({ error: 'Failed to update user role' });
@@ -1393,8 +1376,14 @@ app.delete('/api/admin/users/:id', isAdmin, async (req, res) => {
             return res.status(400).json({ error: 'Cannot delete your own admin account' });
         }
 
-        await prisma.user.delete({ where: { id } });
-        res.json({ message: 'User deleted/banned successfully' });
+        await db.collection('users').doc(id).delete();
+        // Also delete ownerships
+        const ownerships = await db.collection('ownerships').where('userId', '==', id).get();
+        const batch = db.batch();
+        ownerships.forEach(doc => batch.delete(doc.ref));
+        await batch.commit();
+
+        res.json({ message: 'User deleted successfully' });
     } catch (error) {
         console.error('User delete error:', error);
         res.status(500).json({ error: 'Failed to delete user' });
@@ -1426,16 +1415,10 @@ app.delete('/api/admin/rooms/:id', isAdmin, (req, res) => {
             return res.status(404).json({ error: 'Room not found or already closed' });
         }
 
-        // Inform clients to leave
         io.to(id).emit('game_error', 'تم إنهاء الغرفة بواسطة مسؤول النظام (Admin).');
-
         if (room.intervalId) clearInterval(room.intervalId);
         if (room.cahootTimeout) clearTimeout(room.cahootTimeout);
-
-        // Force disconnect all sockets in room
-        io.in(id).socketsJoin('kicked'); // Move them somewhere else or just disconnect
         io.in(id).disconnectSockets(true);
-
         delete rooms[id];
 
         res.json({ message: 'Room forcefully closed' });

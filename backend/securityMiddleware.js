@@ -1,7 +1,5 @@
-const jwt = require('jsonwebtoken');
 const xss = require('xss');
-
-const JWT_SECRET = process.env.JWT_SECRET || 'super-secret-key-for-dev';
+const { auth, db } = require('./firebaseAdmin');
 
 // Arabic Profanity Filter (basic example list)
 const badWords = [
@@ -33,23 +31,35 @@ const sanitizeInput = (input) => {
 };
 
 // Express Middleware
-const isAuthenticated = (req, res, next) => {
+const isAuthenticated = async (req, res, next) => {
     const authHeader = req.headers.authorization;
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
         return res.status(401).json({ error: 'Unauthorized: No token provided' });
     }
     const token = authHeader.split(' ')[1];
     try {
-        const decoded = jwt.verify(token, JWT_SECRET);
-        req.user = decoded; // { userId, username, displayName, role }
+        const decodedToken = await auth.verifyIdToken(token);
+
+        // Fetch additional user info from Firestore (like role)
+        const userDoc = await db.collection('users').doc(decodedToken.uid).get();
+        const userData = userDoc.exists ? userDoc.data() : { role: 'USER' };
+
+        req.user = {
+            userId: decodedToken.uid,
+            username: userData.username || decodedToken.email?.split('@')[0],
+            displayName: userData.displayName || decodedToken.name || 'User',
+            role: userData.role || 'USER',
+            email: decodedToken.email
+        };
         next();
     } catch (error) {
+        console.error("Auth Error:", error);
         return res.status(401).json({ error: 'Unauthorized: Invalid token' });
     }
 };
 
-const isAdmin = (req, res, next) => {
-    isAuthenticated(req, res, () => {
+const isAdmin = async (req, res, next) => {
+    await isAuthenticated(req, res, () => {
         if (req.user && req.user.role === 'ADMIN') {
             next();
         } else {
@@ -59,16 +69,28 @@ const isAdmin = (req, res, next) => {
 };
 
 // Socket.IO Middleware
-const socketAuthenticator = (socket, next) => {
+const socketAuthenticator = async (socket, next) => {
     const token = socket.handshake.auth?.token;
     if (!token) {
         return next(new Error('Authentication error: No token provided'));
     }
     try {
-        const decoded = jwt.verify(token, JWT_SECRET);
-        socket.user = decoded;
+        const decodedToken = await auth.verifyIdToken(token);
+
+        // Fetch role/username from Firestore
+        const userDoc = await db.collection('users').doc(decodedToken.uid).get();
+        const userData = userDoc.exists ? userDoc.data() : { role: 'USER' };
+
+        socket.user = {
+            userId: decodedToken.uid,
+            username: userData.username || decodedToken.email?.split('@')[0],
+            displayName: userData.displayName || decodedToken.name || 'User',
+            role: userData.role || 'USER',
+            email: decodedToken.email
+        };
         next();
     } catch (error) {
+        console.error("Socket Auth Error:", error);
         return next(new Error('Authentication error: Invalid token'));
     }
 };
@@ -78,6 +100,5 @@ module.exports = {
     isAdmin,
     socketAuthenticator,
     sanitizeInput,
-    profanityFilter,
-    JWT_SECRET
+    profanityFilter
 };
