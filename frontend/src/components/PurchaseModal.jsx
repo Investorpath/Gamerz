@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
 
-function PurchaseModal({ isOpen, onClose, game }) {
+function PurchaseModal({ isOpen, onClose, game, allGames }) {
     const { user, mockCheckout } = useAuth();
     const navigate = useNavigate();
     const [loading, setLoading] = useState(false);
@@ -21,7 +21,10 @@ function PurchaseModal({ isOpen, onClose, game }) {
         setError('');
         try {
             if (game.isPackage) {
-                await mockCheckout({ packageId: game.id });
+                await mockCheckout({
+                    packageId: game.id,
+                    ...(game.selectedGames ? { selectedGames: game.selectedGames } : {})
+                });
             } else {
                 await mockCheckout({ gameId: game.id });
             }
@@ -81,14 +84,38 @@ function PurchaseModal({ isOpen, onClose, game }) {
                             </div>
                         )}
 
-                        {game.isPackage && (
+                        {game.isPackage && game.isDynamic && game.selectedGames && (
+                            <div className="bg-amber-900/20 border border-amber-500/30 rounded-xl p-3 mb-6 w-full text-right">
+                                <h4 className="text-amber-400 font-bold mb-2 text-sm">الباقة تحتوي على:</h4>
+                                <ul className="text-slate-300 text-sm list-disc list-inside space-y-1">
+                                    {game.selectedGames.map(gameId => {
+                                        const gameInfo = allGames?.find(g => g.id === gameId);
+                                        return <li key={gameId}>{gameInfo ? gameInfo.title : gameId}</li>;
+                                    })}
+                                </ul>
+                            </div>
+                        )}
+
+                        {game.isPackage && !game.isDynamic && (
                             <div className="bg-amber-900/20 border border-amber-500/30 rounded-xl p-3 mb-6 w-full text-right">
                                 <h4 className="text-amber-400 font-bold mb-2 text-sm">تتضمن هذه الباقة:</h4>
                                 <ul className="text-slate-300 text-sm list-disc list-inside space-y-1">
-                                    <li>لعبة المحتال (Spyfall)</li>
-                                    <li>بدون كلام (Charades)</li>
-                                    <li>كاهوت! (Cahoot)</li>
-                                    <li>سؤال وجواب (Jeopardy)</li>
+                                    {game.id === 'party_bundle' ? (
+                                        <>
+                                            <li>لعبة المحتال (Spyfall)</li>
+                                            <li>بدون كلام (Charades)</li>
+                                            <li>كاهوت! (Cahoot)</li>
+                                            <li>سؤال وجواب (Jeopardy)</li>
+                                        </>
+                                    ) : game.id === 'bundle_all' ? (
+                                        <>
+                                            <li>لعبة المحتال (Spyfall)</li>
+                                            <li>بدون كلام (Charades)</li>
+                                            <li>كاهوت! (Cahoot)</li>
+                                            <li>سؤال وجواب (Jeopardy)</li>
+                                            <li>سين جيم (Seen Jeem)</li>
+                                        </>
+                                    ) : null}
                                 </ul>
                             </div>
                         )}

@@ -8,6 +8,7 @@ import JeopardyApp from './pages/JeopardyApp';
 import TicTacToeApp from './pages/TicTacToeApp';
 import CahootApp from './pages/CahootApp';
 import SeenJeemApp from './pages/SeenJeemApp';
+import SameSameApp from './pages/SameSameApp';
 import AdminDashboard from './pages/AdminDashboard';
 import Login from './pages/Login';
 import Register from './pages/Register';
@@ -57,6 +58,11 @@ function App() {
                         <Route path="/seenjeem" element={
                             <ProtectedRoute gameId="seenjeem">
                                 <SeenJeemApp />
+                            </ProtectedRoute>
+                        } />
+                        <Route path="/samesame" element={
+                            <ProtectedRoute gameId="same_same">
+                                <SameSameApp />
                             </ProtectedRoute>
                         } />
                         <Route path="/admin" element={

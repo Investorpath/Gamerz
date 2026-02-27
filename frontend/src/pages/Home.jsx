@@ -3,10 +3,12 @@ import { Link } from 'react-router-dom';
 import GameCard from '../components/GameCard';
 import PurchaseModal from '../components/PurchaseModal';
 import { useAuth } from '../context/AuthContext';
+import BundleSelectionModal from '../components/BundleSelectionModal';
 
 function Home() {
     const { user, logout, isAdmin } = useAuth();
     const [selectedGameToPurchase, setSelectedGameToPurchase] = useState(null);
+    const [selectedBundleForSelection, setSelectedBundleForSelection] = useState(null);
     const games = [
         {
             id: "trivia",
@@ -62,6 +64,20 @@ function Home() {
             previewImages: [
                 "https://placehold.co/600x400/172554/fef08a?text=Jeopardy+Board",
                 "https://placehold.co/600x400/172554/fef08a?text=Jeopardy+Question"
+            ]
+        },
+        {
+            id: "same_same",
+            title: "أهم حاجة النية",
+            description: "لعبة إبداعية ومضحكة! اكتب جملة واحدة تناسب موقفين مختلفين تماماً، واقنع الحكم بأن إجابتك هي العبقرية الحقيقية.",
+            tags: ["إبداع", "ضحك", "جماعية"],
+            to: "/samesame",
+            active: true,
+            icon: "🎭",
+            price: "$3.99",
+            previewImages: [
+                "https://placehold.co/600x400/9d174d/fbcfe8?text=Same+Same+Scenarios",
+                "https://placehold.co/600x400/9d174d/fbcfe8?text=Same+Same+Winning+Answer"
             ]
         },
         {
@@ -121,6 +137,41 @@ function Home() {
                 "https://placehold.co/800x400/451a03/fcd34d?text=Party+Bundle+Games",
                 "https://placehold.co/800x400/451a03/fcd34d?text=Save+Big"
             ]
+        },
+        {
+            id: "bundle_3",
+            title: "باقة المشكلة (3 ألعاب)",
+            description: "اختر أي 3 ألعاب مميزة من اختيارك ووفر أكثر!",
+            tags: ["باقة مرنة", "٣ ألعاب"],
+            isPackage: true,
+            isDynamic: true,
+            targetCount: 3,
+            icon: "🛍️",
+            price: "$6.99",
+            originalPrice: "$10.97"
+        },
+        {
+            id: "bundle_5",
+            title: "باقة التوفير الكبير (5 ألعاب)",
+            description: "اختر 5 ألعاب مميزة من اختيارك ووفر أكثر!",
+            tags: ["باقة مرنة", "٥ ألعاب"],
+            isPackage: true,
+            isDynamic: true,
+            targetCount: 5,
+            icon: "💎",
+            price: "$9.99",
+            originalPrice: "$14.95"
+        },
+        {
+            id: "bundle_all",
+            title: "باقة السهرة الشاملة (كل الألعاب)",
+            description: "افتح جميع الألعاب المميزة بضغطة زر واحدة واحصل على تجربة اللعب الكاملة!",
+            tags: ["الفئة الذهبية", "كل الألعاب"],
+            isPackage: true,
+            isDynamic: false,
+            icon: "👑",
+            price: "$12.99",
+            originalPrice: "$16.95"
         }
     ];
 
@@ -205,7 +256,13 @@ function Home() {
                                 <div className="absolute -inset-1 bg-gradient-to-r from-yellow-400 to-amber-600 rounded-3xl blur opacity-30 group-hover:opacity-60 group-hover:duration-200 transition duration-1000 animate-pulse"></div>
                                 <GameCard
                                     {...pkg}
-                                    onPurchase={() => setSelectedGameToPurchase(pkg)}
+                                    onPurchase={() => {
+                                        if (pkg.isDynamic) {
+                                            setSelectedBundleForSelection(pkg);
+                                        } else {
+                                            setSelectedGameToPurchase(pkg);
+                                        }
+                                    }}
                                 />
                             </div>
                         ))}
@@ -233,11 +290,28 @@ function Home() {
 
             </div>
 
+            {/* Bundle Selection Modal */}
+            <BundleSelectionModal
+                isOpen={!!selectedBundleForSelection}
+                onClose={() => setSelectedBundleForSelection(null)}
+                bundle={selectedBundleForSelection}
+                allGames={games}
+                onConfirm={(selectedGameIds) => {
+                    const bundleToPurchase = {
+                        ...selectedBundleForSelection,
+                        selectedGames: selectedGameIds
+                    };
+                    setSelectedBundleForSelection(null);
+                    setSelectedGameToPurchase(bundleToPurchase);
+                }}
+            />
+
             {/* Purchase Modal */}
             <PurchaseModal
                 isOpen={!!selectedGameToPurchase}
                 onClose={() => setSelectedGameToPurchase(null)}
                 game={selectedGameToPurchase}
+                allGames={games}
             />
 
             {/* Footer */}

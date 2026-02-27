@@ -13,6 +13,7 @@ const imposterLocations = require('./imposter_locations.json');
 const charadesCategories = require('./charades_words.json');
 const jeopardyQuestions = require('./jeopardy_questions.json');
 const seenjeemQuestions = require('./seenjeem_questions.json');
+const doubleScenarios = require('./double_scenarios.json');
 const { isAuthenticated, socketAuthenticator, sanitizeInput, isAdmin } = require('./securityMiddleware');
 const rateLimit = require('express-rate-limit');
 
@@ -99,6 +100,13 @@ function initRoom(roomId, gameType = 'trivia') {
         } else if (gameType === 'seenjeem') {
             room.currentQuestionIndex = -1;
             room.players = {};
+        } else if (gameType === 'same_same') {
+            room.currentRound = 0;
+            room.maxRounds = 3;
+            room.judgeSocketId = null;
+            room.comedians = [];
+            room.currentScenarioPairs = null;
+            room.submittedAnswers = [];
         }
 
         rooms[roomId] = room;
@@ -131,7 +139,7 @@ io.on('connection', (socket) => {
         }
 
         // Room Scoping Authorization (prevent emitting room events if not in room)
-        const roomEvents = ['start_game', 'submit_answer', 'imposter_vote', 'charades_got_it', 'jeopardy_select_question', 'jeopardy_buzz', 'jeopardy_answer', 'tictactoe_move', 'cahoot_start', 'cahoot_submit_answer', 'cahoot_next_question', 'seenjeem_submit_answer'];
+        const roomEvents = ['start_game', 'submit_answer', 'imposter_vote', 'charades_got_it', 'jeopardy_select_question', 'jeopardy_buzz', 'jeopardy_answer', 'tictactoe_move', 'cahoot_start', 'cahoot_submit_answer', 'cahoot_next_question', 'seenjeem_submit_answer', 'submit_funny_answer', 'samesame_pick_winner'];
         if (roomEvents.includes(event)) {
             let roomIdArg;
             if (typeof args[0] === 'object' && args[0] !== null) {
@@ -156,7 +164,7 @@ io.on('connection', (socket) => {
     socket.on('join_room', async ({ roomId, playerName, gameType, userId }) => {
         playerName = sanitizeInput(playerName || socket.user?.displayName || 'Unknown');
         // If it's a new room and a premium game, verify the host owns it
-        if (!rooms[roomId] && ['imposter', 'charades', 'jeopardy', 'cahoot', 'seenjeem'].includes(gameType)) {
+        if (!rooms[roomId] && ['imposter', 'charades', 'jeopardy', 'cahoot', 'seenjeem', 'same_same'].includes(gameType)) {
             if (!userId) {
                 socket.emit('game_error', 'يجب تسجيل الدخول لإنشاء غرفة مميزة.');
                 return;
@@ -243,6 +251,10 @@ io.on('connection', (socket) => {
                 room.currentQuestionIndex = 0;
                 io.to(roomId).emit('game_status', room.status);
                 startSeenJeemQuestion(roomId);
+            } else if (room.gameType === 'same_same') {
+                room.status = 'playing';
+                room.currentRound = 1;
+                startSameSameTurn(roomId);
             }
         }
     });
@@ -527,6 +539,66 @@ io.on('connection', (socket) => {
             if (allAnswered) {
                 endSeenJeemQuestion(roomId);
             }
+        }
+    });
+
+    // --- SAME SAME BUT DIFFERENT SOCKETS ---
+    socket.on('submit_funny_answer', ({ roomId, answerText }) => {
+        const room = rooms[roomId];
+        if (!room || room.status !== 'playing' || room.judgeSocketId === socket.id) return;
+
+        // Comedian submitting
+        const alreadySubmitted = room.submittedAnswers.find(a => a.socketId === socket.id);
+        if (!alreadySubmitted) {
+            room.submittedAnswers.push({
+                socketId: socket.id,
+                text: sanitizeInput(answerText),
+                playerName: room.players[socket.id]?.name || 'Unknown'
+            });
+
+            // If all comedians submitted, move to judging phase immediately
+            if (room.submittedAnswers.length >= room.comedians.length) {
+                endSameSameAnswering(roomId);
+            } else {
+                // Just notify the judge how many are in
+                io.to(room.judgeSocketId).emit('samesame_answers_count', room.submittedAnswers.length);
+            }
+        }
+    });
+
+    socket.on('samesame_pick_winner', ({ roomId, winnerIndex }) => {
+        const room = rooms[roomId];
+        if (!room || room.status !== 'judging' || room.judgeSocketId !== socket.id) return;
+
+        const winningEntry = room.submittedAnswers[winnerIndex];
+        if (winningEntry) {
+            // Reward winner
+            if (room.players[winningEntry.socketId]) {
+                room.players[winningEntry.socketId].score += 15;
+            }
+
+            room.status = 'round_winner';
+            io.to(roomId).emit('game_status', room.status);
+
+            // Broadcast the winner
+            io.to(roomId).emit('samesame_winner', {
+                playerName: winningEntry.playerName,
+                text: winningEntry.text,
+                scenarioA: room.currentScenarioPairs.scenarioA,
+                scenarioB: room.currentScenarioPairs.scenarioB
+            });
+            io.to(roomId).emit('update_players', Object.values(room.players));
+
+            // Wait 5 seconds, then next round
+            setTimeout(() => {
+                room.currentRound++;
+                if (room.currentRound > room.maxRounds) {
+                    room.status = 'finished';
+                    io.to(roomId).emit('game_status', room.status);
+                } else {
+                    startSameSameTurn(roomId);
+                }
+            }, 5000);
         }
     });
 
@@ -864,6 +936,79 @@ function endSeenJeemQuestion(roomId) {
     }, 4000); // 4 second pause
 }
 
+// --- SAME SAME BUT DIFFERENT LOGIC ---
+function startSameSameTurn(roomId) {
+    const room = rooms[roomId];
+    if (!room) return;
+
+    if (room.intervalId) clearInterval(room.intervalId);
+
+    const playerIds = Object.keys(room.players);
+    if (playerIds.length < 3) {
+        console.warn('Same Same started with less than 3 players in room', roomId);
+    }
+
+    // Pick a Judge
+    const judgeId = playerIds[Math.floor(Math.random() * playerIds.length)];
+    room.judgeSocketId = judgeId;
+    room.comedians = playerIds.filter(id => id !== judgeId);
+    room.submittedAnswers = [];
+
+    // Pick Scenarios
+    const randIdx = Math.floor(Math.random() * doubleScenarios.length);
+    room.currentScenarioPairs = doubleScenarios[randIdx];
+
+    room.status = 'playing';
+    io.to(roomId).emit('game_status', room.status);
+
+    // Notify players of roles and scenarios
+    playerIds.forEach(id => {
+        const isJudge = id === judgeId;
+        io.to(id).emit('samesame_turn', {
+            isJudge,
+            judgeName: room.players[judgeId]?.name || 'Unknown',
+            scenarios: room.currentScenarioPairs
+        });
+    });
+
+    room.timer = 60;
+    io.to(roomId).emit('timer', room.timer);
+
+    room.intervalId = setInterval(() => {
+        room.timer--;
+        io.to(roomId).emit('timer', room.timer);
+
+        if (room.timer <= 0) {
+            endSameSameAnswering(roomId);
+        }
+    }, 1000);
+}
+
+function endSameSameAnswering(roomId) {
+    const room = rooms[roomId];
+    if (!room) return;
+    if (room.intervalId) clearInterval(room.intervalId);
+
+    room.status = 'judging';
+    io.to(roomId).emit('game_status', room.status);
+
+    // Send anonymous answers to the judge
+    const anonymousAnswers = room.submittedAnswers.map((a, index) => ({
+        index,
+        text: a.text
+    }));
+
+    // Send empty list to comedians so they know judging started
+    const playerIds = Object.keys(room.players);
+    playerIds.forEach(id => {
+        if (id === room.judgeSocketId) {
+            io.to(id).emit('samesame_judging', anonymousAnswers);
+        } else {
+            io.to(id).emit('samesame_judging', []);
+        }
+    });
+}
+
 const JWT_SECRET = process.env.JWT_SECRET || 'super-secret-key-for-dev';
 
 // --- AUTH ROUTES ---
@@ -917,8 +1062,7 @@ app.post('/api/auth/google', async (req, res) => {
         // Verify the Google JWT token
         const ticket = await googleClient.verifyIdToken({
             idToken: credential,
-            // Audience should ideally be set to process.env.VITE_GOOGLE_CLIENT_ID
-            // Here we rely on the client instance initialization, which is usually sufficient
+            audience: process.env.VITE_GOOGLE_CLIENT_ID || '1078121644331-q9epun5kqmhgu629tla4ntroubds9p1d.apps.googleusercontent.com'
         });
         const payload = ticket.getPayload();
 
@@ -976,7 +1120,7 @@ app.post('/api/auth/google', async (req, res) => {
         });
 
     } catch (error) {
-        console.error("Google Auth Error:", error);
+        console.error("Google Auth Error:", error.message || error);
         res.status(401).json({ error: 'Failed to authenticate with Google' });
     }
 });
@@ -1087,16 +1231,31 @@ app.post('/api/checkout/mock', async (req, res) => {
     try {
         const token = authHeader.split(' ')[1];
         const decoded = jwt.verify(token, JWT_SECRET);
-        const { gameId, packageId } = req.body;
+        const { gameId, packageId, selectedGames } = req.body;
 
         if (!gameId && !packageId) {
             return res.status(400).json({ error: 'gameId or packageId is required' });
         }
 
         const now = new Date();
-        const gamesToUnlock = packageId === 'party_bundle'
-            ? ['imposter', 'charades', 'cahoot', 'jeopardy']
-            : [gameId];
+        let gamesToUnlock = [];
+
+        if (packageId === 'party_bundle') {
+            gamesToUnlock = ['imposter', 'charades', 'cahoot', 'jeopardy'];
+        } else if (packageId === 'bundle_all') {
+            gamesToUnlock = ['imposter', 'charades', 'jeopardy', 'cahoot', 'seenjeem'];
+        } else if (packageId === 'bundle_3' || packageId === 'bundle_5') {
+            if (!selectedGames || !Array.isArray(selectedGames) || selectedGames.length === 0) {
+                return res.status(400).json({ error: 'selectedGames array is required for this package' });
+            }
+            const expectedCount = packageId === 'bundle_3' ? 3 : 5;
+            if (selectedGames.length !== expectedCount) {
+                return res.status(400).json({ error: `You must select exactly ${expectedCount} games for this package` });
+            }
+            gamesToUnlock = selectedGames;
+        } else if (gameId) {
+            gamesToUnlock = [gameId];
+        }
 
         // Process all games in parallel
         await Promise.all(gamesToUnlock.map(async (gId) => {
