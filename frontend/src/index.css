@@ -123,3 +123,7 @@ body {
     border-color: #6366f1;
     box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.1);
 }
+
+.premium-input::placeholder {
+    color: rgba(148, 163, 184, 0.4);
+}

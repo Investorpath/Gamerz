@@ -30,7 +30,24 @@ function SeenJeemApp() {
         if (user && !playerName) {
             setPlayerName(user.displayName);
         }
+    }, [user]);
 
+    useEffect(() => {
+        const urlParams = new URLSearchParams(window.location.search);
+        const joinId = urlParams.get('join');
+        if (joinId && joinId.length === 6 && socket && user) {
+            setRoomId(joinId.toUpperCase());
+            socket.emit('join_room', {
+                roomId: joinId.toUpperCase(),
+                playerName: user.displayName,
+                gameType: 'seenjeem',
+                userId: user.id
+            });
+            setInRoom(true);
+        }
+    }, [socket, user]);
+
+    useEffect(() => {
         if (!socket) return;
 
         socket.on('update_players', (playersList) => setPlayers(playersList));

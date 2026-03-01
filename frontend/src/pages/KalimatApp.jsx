@@ -153,9 +153,9 @@ function KalimatApp() {
                 <div className="w-10 h-10 bg-indigo-500/10 rounded-xl border border-indigo-500/20 flex items-center justify-center text-xl shadow-inner">🏆</div>
             </header>
 
-            <main className="flex-1 flex flex-col items-center justify-start pt-4 relative z-10 overflow-y-auto pb-48 md:pb-0">
+            <main className="flex-1 flex flex-col items-center justify-start pt-4 relative z-10 overflow-y-auto pb-80 md:pb-96">
                 {/* Wordle Grid */}
-                <div className="flex flex-col gap-2 scale-95 md:scale-100 mb-8">
+                <div className="flex flex-col gap-1.5 md:gap-2 scale-[0.85] sm:scale-95 md:scale-100 mb-8 origin-top">
                     {[...Array(8)].map((_, rowIndex) => {
                         const attempt = attempts[rowIndex];
                         const isCurrentRow = rowIndex === attempts.length;
@@ -163,7 +163,7 @@ function KalimatApp() {
                         const chars = attempt ? attempt.guess.split('') : (isCurrentRow ? currentGuess.split('').concat(Array(5 - currentGuess.length).fill(' ')) : Array(5).fill(' '));
 
                         return (
-                            <div key={rowIndex} className="flex gap-2">
+                            <div key={rowIndex} className="flex gap-1.5 md:gap-2">
                                 {chars.map((char, charIndex) => {
                                     let colorClass = COLORS.empty;
                                     if (attempt) {
@@ -176,7 +176,7 @@ function KalimatApp() {
                                     return (
                                         <div
                                             key={charIndex}
-                                            className={`w-14 h-14 md:w-16 md:h-16 flex items-center justify-center text-2xl md:text-3xl font-black rounded-xl border-2 transition-all duration-300 ${colorClass} ${attempt ? 'scale-100 rotate-0 animate-in flip-in-y' : char !== ' ' ? 'scale-105 border-indigo-400 ring-4 ring-indigo-500/10' : 'scale-100'}`}
+                                            className={`w-12 h-14 sm:w-14 sm:h-16 md:w-16 md:h-20 flex items-center justify-center text-2xl md:text-3xl font-black rounded-xl border-2 transition-all duration-300 ${colorClass} ${attempt ? 'scale-100 rotate-0 animate-in flip-in-y' : char !== ' ' ? 'scale-105 border-indigo-400 ring-4 ring-indigo-500/10' : 'scale-100'}`}
                                             style={{ transitionDelay: `${charIndex * 100}ms` }}
                                         >
                                             {char === ' ' ? '' : char}

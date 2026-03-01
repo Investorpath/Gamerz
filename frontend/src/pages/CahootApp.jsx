@@ -13,6 +13,24 @@ function CahootApp() {
     const [inRoom, setInRoom] = useState(false);
     const [gameState, setGameState] = useState('waiting');
 
+    useEffect(() => {
+        const urlParams = new URLSearchParams(window.location.search);
+        const joinId = urlParams.get('join');
+        if (joinId && joinId.length === 6) {
+            setRoomId(joinId.toUpperCase());
+            // If we have a user and socket, we can try to auto-join
+            if (user && socket) {
+                socket.emit('join_room', {
+                    roomId: joinId.toUpperCase(),
+                    playerName: user.displayName,
+                    gameType: 'cahoot',
+                    userId: user.id
+                });
+                setInRoom(true);
+            }
+        }
+    }, [user, socket]);
+
     // Room Data
     const [players, setPlayers] = useState([]);
     const [hostId, setHostId] = useState(null);

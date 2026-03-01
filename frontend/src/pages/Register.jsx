@@ -94,8 +94,8 @@ function Register() {
                                 required
                                 value={email}
                                 onChange={(e) => setEmail(e.target.value)}
-                                className="w-full premium-input text-white rounded-2xl pl-12 pr-4 py-3 focus:outline-none focus:ring-2 focus:ring-teal-500/20 dir-ltr text-right"
-                                placeholder="example@email.com"
+                                className="w-full premium-input text-white rounded-2xl pl-12 pr-4 py-3 focus:outline-none focus:ring-2 focus:ring-teal-500/20 text-left dir-ltr"
+                                placeholder="email@example.com"
                             />
                         </div>
                     </div>
@@ -109,8 +109,8 @@ function Register() {
                                 required
                                 value={username}
                                 onChange={(e) => setUsername(e.target.value)}
-                                className="w-full premium-input text-white rounded-2xl pl-12 pr-4 py-3 focus:outline-none focus:ring-2 focus:ring-teal-500/20 dir-ltr text-right"
-                                placeholder="johndoe123"
+                                className="w-full premium-input text-white rounded-2xl pl-12 pr-4 py-3 focus:outline-none focus:ring-2 focus:ring-teal-500/20 text-left dir-ltr"
+                                placeholder="username"
                             />
                         </div>
                     </div>
@@ -151,7 +151,7 @@ function Register() {
                                 required
                                 value={password}
                                 onChange={(e) => setPassword(e.target.value)}
-                                className="w-full premium-input text-white rounded-2xl pl-12 pr-4 py-3 focus:outline-none focus:ring-2 focus:ring-teal-500/20 dir-ltr text-right"
+                                className="w-full premium-input text-white rounded-2xl pl-12 pr-4 py-3 focus:outline-none focus:ring-2 focus:ring-teal-500/20 text-left dir-ltr"
                                 placeholder="••••••••"
                             />
                         </div>
