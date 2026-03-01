@@ -157,6 +157,12 @@ io.on('connection', (socket) => {
             userId: socket.user?.userId || userId,
             jeopardyQuestions
         });
+
+        // Auto-start for solo Kalimat to make it fast
+        if (gameType === 'kalimat' && roomId.startsWith('solo_')) {
+            const kalimat = require('./src/games/kalimat');
+            kalimat.startKalimat(io, rooms, roomId);
+        }
     });
 
     socket.on('start_game', (roomId) => {

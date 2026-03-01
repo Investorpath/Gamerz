@@ -41,10 +41,6 @@ function KalimatApp() {
                 gameType: 'kalimat',
                 userId: user.id || user.uid
             });
-            // Give a small delay to ensure room is joined before starting
-            setTimeout(() => {
-                socket.emit('start_game', soloRoomId);
-            }, 500);
         }
     }, [socket, user]);
 
