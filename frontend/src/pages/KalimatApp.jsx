@@ -97,7 +97,7 @@ function KalimatApp() {
         if (targetReached || gameStatus !== 'playing') return;
 
         if (char === 'حذف') {
-            setCurrentGuess(prev => prev.slice(1));
+            setCurrentGuess(prev => prev.slice(0, -1));
         } else if (char === 'إرسال') {
             if (currentGuess.length === 5) {
                 socket.emit('kalimat_guess', { roomId, guess: currentGuess });
