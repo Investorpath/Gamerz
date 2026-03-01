@@ -120,6 +120,20 @@ function Home() {
                 "https://placehold.co/600x400/4c1d95/f472b6?text=Seen+Jeem+Typing",
                 "https://placehold.co/600x400/4c1d95/f472b6?text=Seen+Jeem+Results"
             ]
+        },
+        {
+            id: "kalimat",
+            title: "كلمات (Kalimat)",
+            description: "لعبة تخمين الكلمات العربية! هل تستطيع تخمين الكلمة السرية المكونة من ٥ حروف في ٨ محاولات فقط؟",
+            tags: ["كلمات", "تفكير", "مجانية"],
+            to: "/kalimat",
+            active: true,
+            icon: "📝",
+            price: "مجاناً",
+            previewImages: [
+                "https://placehold.co/600x400/064e3b/10b981?text=Kalimat+Game",
+                "https://placehold.co/600x400/064e3b/10b981?text=Wordle+Arabic"
+            ]
         }
     ];
 

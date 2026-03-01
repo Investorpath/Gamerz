@@ -9,6 +9,7 @@ import TicTacToeApp from './pages/TicTacToeApp';
 import CahootApp from './pages/CahootApp';
 import SeenJeemApp from './pages/SeenJeemApp';
 import SameSameApp from './pages/SameSameApp';
+import KalimatApp from './pages/KalimatApp';
 import AdminDashboard from './pages/AdminDashboard';
 import Login from './pages/Login';
 import Register from './pages/Register';
@@ -60,6 +61,11 @@ function App() {
                     <Route path="/samesame" element={
                         <ProtectedRoute gameId="same_same">
                             <SameSameApp />
+                        </ProtectedRoute>
+                    } />
+                    <Route path="/kalimat" element={
+                        <ProtectedRoute gameId="kalimat">
+                            <KalimatApp />
                         </ProtectedRoute>
                     } />
                     <Route path="/admin" element={
