@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
 
-const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3001';
+import { BACKEND_URL } from '../config';
 
 function AdminDashboard() {
     const { user, token, isAdmin } = useAuth();
@@ -18,6 +18,7 @@ function AdminDashboard() {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
     const [successMsg, setSuccessMsg] = useState('');
+    const [searchTerm, setSearchTerm] = useState('');
 
     useEffect(() => {
         if (!loading && (!user || !isAdmin)) {
@@ -205,6 +206,20 @@ function AdminDashboard() {
                                     <span className="text-4xl font-black text-red-400 relative z-10">{stats.activeRoomsCount}</span>
                                 </div>
                             </div>
+
+                            {stats.popularity && (
+                                <div className="mt-8 bg-slate-800/40 border border-slate-700/50 rounded-2xl p-6">
+                                    <h3 className="text-lg font-bold mb-4 text-slate-400">🔥 الألعاب الأكثر شعبية (إجمالي المبيعات)</h3>
+                                    <div className="flex flex-wrap gap-4">
+                                        {Object.entries(stats.popularity).map(([game, count]) => (
+                                            <div key={game} className="bg-slate-900 px-4 py-2 rounded-xl border border-slate-700 flex items-center gap-3">
+                                                <span className="font-bold text-indigo-400 uppercase tracking-widest text-sm">{game}</span>
+                                                <span className="bg-slate-800 px-2 py-0.5 rounded text-xs font-black text-white">{count}</span>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
                         </div>
                     )}
 
@@ -213,7 +228,16 @@ function AdminDashboard() {
                         <div className="animate-fade-in flex flex-col h-full">
                             <div className="flex justify-between items-center mb-6">
                                 <h2 className="text-2xl font-bold text-slate-200">قاعدة بيانات المستخدمين</h2>
-                                <button onClick={fetchData} className="bg-slate-800 hover:bg-slate-700 p-2 rounded-lg" title="تحديث">🔄</button>
+                                <div className="flex gap-3">
+                                    <input
+                                        type="text"
+                                        placeholder="بحث عن مستخدم..."
+                                        value={searchTerm}
+                                        onChange={(e) => setSearchTerm(e.target.value)}
+                                        className="bg-slate-950 border border-slate-800 rounded-xl px-4 py-2 text-sm focus:outline-none focus:border-indigo-500 transition-colors w-64"
+                                    />
+                                    <button onClick={fetchData} className="bg-slate-800 hover:bg-slate-700 p-2 rounded-lg" title="تحديث">🔄</button>
+                                </div>
                             </div>
 
                             <div className="bg-slate-950 rounded-2xl border border-slate-800 overflow-x-auto flex-1">
@@ -229,7 +253,11 @@ function AdminDashboard() {
                                         </tr>
                                     </thead>
                                     <tbody>
-                                        {usersList.map((u) => (
+                                        {usersList.filter(u =>
+                                            u.displayName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                                            u.username.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                                            u.email?.toLowerCase().includes(searchTerm.toLowerCase())
+                                        ).map((u) => (
                                             <tr key={u.id} className="border-b border-slate-800/50 hover:bg-slate-800/30 transition-colors">
                                                 <td className="px-6 py-4 font-bold">
                                                     {u.displayName}

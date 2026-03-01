@@ -1,13 +1,13 @@
 import { useState, useEffect, useRef } from 'react';
-import { io } from 'socket.io-client';
 import { useAuth } from '../context/AuthContext';
+import { useSocket } from '../hooks/useSocket';
 
 // Connect to backend
-const URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3001';
+import { BACKEND_URL } from '../config';
 
 function SeenJeemApp() {
     const { user } = useAuth();
-    const [socket, setSocket] = useState(null);
+    const socket = useSocket();
     const [inRoom, setInRoom] = useState(false);
     const [roomId, setRoomId] = useState('');
     const [playerName, setPlayerName] = useState('');
@@ -27,21 +27,23 @@ function SeenJeemApp() {
 
     // Setup Socket
     useEffect(() => {
-        const newSocket = io(URL);
-        setSocket(newSocket);
-
         if (user && !playerName) {
             setPlayerName(user.displayName);
         }
 
-        newSocket.on('update_players', (playersList) => setPlayers(playersList));
-        newSocket.on('game_status', (status) => setGameStatus(status));
-        newSocket.on('room_host', (id) => setHostId(id));
-        newSocket.on('timer', (t) => setTimer(t));
-        newSocket.on('game_error', (msg) => alert(msg));
+        if (!socket) return;
+
+        socket.on('update_players', (playersList) => setPlayers(playersList));
+        socket.on('game_status', (status) => setGameStatus(status));
+        socket.on('room_host', (id) => setHostId(id));
+        socket.on('timer', (t) => setTimer(t));
+        socket.on('game_error', (msg) => {
+            alert(msg);
+            setInRoom(false); // Reset state if join or game fails
+        });
 
         // Question Events
-        newSocket.on('seenjeem_new_question', (qData) => {
+        socket.on('seenjeem_new_question', (qData) => {
             setCurrentQuestion(qData);
             setMyAnswer('');
             setHasAnswered(false);
@@ -51,16 +53,25 @@ function SeenJeemApp() {
             setTimeout(() => inputRef.current?.focus(), 100);
         });
 
-        newSocket.on('seenjeem_reveal', (answer) => {
+        socket.on('seenjeem_reveal', (answer) => {
             setCorrectAnswer(answer);
         });
 
-        newSocket.on('seenjeem_correct_guess', ({ playerName, points }) => {
+        socket.on('seenjeem_correct_guess', ({ playerName, points }) => {
             setNotifications(prev => [...prev, `${playerName} أجاب إجابة صحيحة ! (+${points})`]);
         });
 
-        return () => newSocket.disconnect();
-    }, [user]); // Re-run if user changes ideally, but empty is okay too.
+        return () => {
+            socket.off('update_players');
+            socket.off('game_status');
+            socket.off('room_host');
+            socket.off('timer');
+            socket.off('game_error');
+            socket.off('seenjeem_new_question');
+            socket.off('seenjeem_reveal');
+            socket.off('seenjeem_correct_guess');
+        };
+    }, [user, socket]); // Re-run if user or socket changes
 
     const handleJoinOrCreate = (e) => {
         e.preventDefault();

@@ -3,7 +3,7 @@ import { io } from 'socket.io-client';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
 
-const SOCKET_SERVER_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3001';
+import { BACKEND_URL } from '../config';
 
 function SameSameApp() {
     const { user, token } = useAuth();
@@ -35,7 +35,7 @@ function SameSameApp() {
             return;
         }
 
-        const newSocket = io(SOCKET_SERVER_URL, {
+        const newSocket = io(BACKEND_URL, {
             auth: { token }
         });
 
@@ -55,6 +55,7 @@ function SameSameApp() {
 
         newSocket.on('game_error', (msg) => {
             setError(msg);
+            setRoomId(''); // Reset room ID so user can try again
         });
 
         newSocket.on('update_players', (playerList) => {

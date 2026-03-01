@@ -1,14 +1,14 @@
 import { useState, useEffect } from 'react';
-import { io } from 'socket.io-client';
 import Game from '../components/Game';
 import { useAuth } from '../context/AuthContext';
+import { useSocket } from '../hooks/useSocket';
 
 // Connect to backend
-const URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3001';
-const socket = io(URL);
+import { BACKEND_URL } from '../config';
 
 function TriviaApp() {
   const { user } = useAuth();
+  const socket = useSocket();
   const [inRoom, setInRoom] = useState(false);
   const [roomId, setRoomId] = useState('');
   const [playerName, setPlayerName] = useState('');
@@ -23,6 +23,8 @@ function TriviaApp() {
   }, [user]);
 
   useEffect(() => {
+    if (!socket) return;
+
     socket.on('update_players', (playersList) => {
       setPlayers(playersList);
     });
@@ -40,12 +42,12 @@ function TriviaApp() {
       socket.off('game_status');
       socket.off('room_host');
     };
-  }, []);
+  }, [socket]);
 
   const handleJoinOrCreate = (e) => {
     e.preventDefault();
-    if (roomId && playerName) {
-      socket.emit('join_room', { roomId, playerName });
+    if (socket && roomId && playerName) {
+      socket.emit('join_room', { roomId, playerName, gameType: 'trivia', userId: user?.id });
       setInRoom(true);
     }
   };

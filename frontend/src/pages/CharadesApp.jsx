@@ -1,14 +1,14 @@
 import React, { useState, useEffect } from 'react';
-import { io } from 'socket.io-client';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
+import { useSocket } from '../hooks/useSocket';
 
-const SOCKET_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+import { BACKEND_URL } from '../config';
 
 function CharadesApp() {
     const { user } = useAuth();
     const navigate = useNavigate();
-    const [socket, setSocket] = useState(null);
+    const socket = useSocket();
     const [roomId, setRoomId] = useState('');
     const [inRoom, setInRoom] = useState(false);
     const [players, setPlayers] = useState([]);
@@ -18,21 +18,27 @@ function CharadesApp() {
     const [hostId, setHostId] = useState(null);
 
     useEffect(() => {
-        const newSocket = io(SOCKET_URL);
-        setSocket(newSocket);
+        if (!socket) return;
 
-        newSocket.on('update_players', (playersList) => setPlayers(playersList));
-        newSocket.on('game_status', (status) => setGameStatus(status));
-        newSocket.on('charades_turn', (data) => setTurnData(data));
-        newSocket.on('timer', (time) => setTimer(time));
-        newSocket.on('room_host', (id) => setHostId(id));
-        newSocket.on('game_error', (msg) => {
+        socket.on('update_players', (playersList) => setPlayers(playersList));
+        socket.on('game_status', (status) => setGameStatus(status));
+        socket.on('charades_turn', (data) => setTurnData(data));
+        socket.on('timer', (time) => setTimer(time));
+        socket.on('room_host', (id) => setHostId(id));
+        socket.on('game_error', (msg) => {
             alert(msg);
             setInRoom(false);
         });
 
-        return () => newSocket.close();
-    }, []);
+        return () => {
+            socket.off('update_players');
+            socket.off('game_status');
+            socket.off('charades_turn');
+            socket.off('timer');
+            socket.off('room_host');
+            socket.off('game_error');
+        };
+    }, [socket]);
 
     const joinRoom = (e) => {
         e.preventDefault();

@@ -1,14 +1,14 @@
 import React, { useState, useEffect } from 'react';
-import { io } from 'socket.io-client';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
+import { useSocket } from '../hooks/useSocket';
 
-const SOCKET_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+import { BACKEND_URL } from '../config';
 
 function JeopardyApp() {
     const { user } = useAuth();
     const navigate = useNavigate();
-    const [socket, setSocket] = useState(null);
+    const socket = useSocket();
     const [roomId, setRoomId] = useState('');
     const [inRoom, setInRoom] = useState(false);
     const [players, setPlayers] = useState([]);
@@ -23,45 +23,54 @@ function JeopardyApp() {
     const [hostId, setHostId] = useState(null);
 
     useEffect(() => {
-        const newSocket = io(SOCKET_URL);
-        setSocket(newSocket);
+        if (!socket) return;
 
-        newSocket.on('update_players', (playersList) => setPlayers(playersList));
-        newSocket.on('game_status', (status) => setGameStatus(status));
-        newSocket.on('room_host', (id) => setHostId(id));
-        newSocket.on('game_error', (msg) => {
+        socket.on('update_players', (playersList) => setPlayers(playersList));
+        socket.on('game_status', (status) => setGameStatus(status));
+        socket.on('room_host', (id) => setHostId(id));
+        socket.on('game_error', (msg) => {
             alert(msg);
             setInRoom(false);
         });
 
-        newSocket.on('jeopardy_board', (board) => {
+        socket.on('jeopardy_board', (board) => {
             setBoardState(board);
             setActiveQuestion(null);
             setBuzzerInfo(null);
             setOptions(null);
         });
 
-        newSocket.on('jeopardy_active_question', (qData) => {
+        socket.on('jeopardy_active_question', (qData) => {
             setActiveQuestion(qData);
             setBuzzerInfo(null);
             setOptions(null);
         });
 
-        newSocket.on('jeopardy_buzzed', (info) => {
+        socket.on('jeopardy_buzzed', (info) => {
             setBuzzerInfo(info);
         });
 
-        newSocket.on('jeopardy_options', (opts) => {
+        socket.on('jeopardy_options', (opts) => {
             setOptions(opts);
         });
 
-        return () => newSocket.close();
-    }, []);
+        return () => {
+            socket.off('update_players');
+            socket.off('game_status');
+            socket.off('room_host');
+            socket.off('game_error');
+            socket.off('jeopardy_board');
+            socket.off('jeopardy_active_question');
+            socket.off('jeopardy_buzzed');
+            socket.off('jeopardy_options');
+        };
+    }, [socket]);
 
     const joinRoom = (e) => {
         e.preventDefault();
         if (roomId.trim() && socket && user) {
             socket.emit('join_room', { roomId, playerName: user.displayName, gameType: 'jeopardy', userId: user.id });
+            // We set it to true, but if game_error comes back, it'll reset to false in the useEffect
             setInRoom(true);
         }
     };

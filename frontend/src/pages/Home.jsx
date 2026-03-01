@@ -211,6 +211,12 @@ function Home() {
                                         <span>🛡️</span> لوحة الإدارة
                                     </Link>
                                 )}
+                                <Link
+                                    to="/dashboard"
+                                    className="bg-indigo-600/80 hover:bg-indigo-500 text-white font-bold py-2 px-4 rounded-xl shadow-lg transition-all border border-indigo-400/30 flex items-center gap-2"
+                                >
+                                    <span>👤</span> حسابي
+                                </Link>
                                 <button
                                     onClick={logout}
                                     className="bg-slate-800 hover:bg-red-900/40 text-red-400 border border-slate-700 hover:border-red-500/50 px-4 py-2 rounded-xl text-sm font-bold transition-colors"
@@ -324,6 +330,11 @@ function Home() {
                     تم التطوير بحب <span>❤️</span> لمنصة الألعاب العربية
                 </p>
                 <p className="text-sm mt-2">© {new Date().getFullYear()} جميع الحقوق محفوظة.</p>
+                <div className="mt-4 flex justify-center gap-6 text-xs font-bold uppercase tracking-widest text-slate-600">
+                    <Link to="/terms" className="hover:text-indigo-400 transition-colors">الشروط والأحكام</Link>
+                    <span className="opacity-30">|</span>
+                    <a href="mailto:support@gamerz.com" className="hover:text-indigo-400 transition-colors">الدعم الفني</a>
+                </div>
             </footer>
         </div>
     );

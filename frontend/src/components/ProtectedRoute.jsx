@@ -19,7 +19,9 @@ function ProtectedRoute({ children, gameId }) {
         return <Navigate to="/login" state={{ from: location }} replace />;
     }
 
-    if (gameId && !user.ownedGames?.includes(gameId)) {
+    const FREE_GAMES = ['trivia', 'tictactoe'];
+
+    if (gameId && !FREE_GAMES.includes(gameId) && !user.ownedGames?.includes(gameId)) {
         // Redirect to Hub if logged in but don't own the game
         return <Navigate to="/" replace />;
     }

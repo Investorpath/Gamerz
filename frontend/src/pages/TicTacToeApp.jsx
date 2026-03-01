@@ -1,13 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import io from 'socket.io-client';
 import { useAuth } from '../context/AuthContext';
+import { useSocket } from '../hooks/useSocket';
 
-const BACKEND_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
-
-let socket;
+import { BACKEND_URL } from '../config';
 
 function TicTacToeApp() {
     const { user } = useAuth();
+    const socket = useSocket();
     const [roomId, setRoomId] = useState('');
     const [inRoom, setInRoom] = useState(false);
     const [status, setStatus] = useState('waiting');
@@ -20,7 +19,7 @@ function TicTacToeApp() {
     const [errorMsg, setErrorMsg] = useState('');
 
     useEffect(() => {
-        socket = io(BACKEND_URL);
+        if (!socket) return;
 
         socket.on('update_players', (playersList) => {
             setPlayers(playersList);
@@ -44,9 +43,12 @@ function TicTacToeApp() {
         });
 
         return () => {
-            socket.disconnect();
+            socket.off('update_players');
+            socket.off('game_status');
+            socket.off('tictactoe_state');
+            socket.off('game_error');
         };
-    }, []);
+    }, [socket]);
 
     const joinRoom = (e) => {
         e.preventDefault();

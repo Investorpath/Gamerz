@@ -5,14 +5,15 @@ import {
     createUserWithEmailAndPassword,
     signOut,
     signInWithCredential,
+    signInWithPopup,
     GoogleAuthProvider
 } from 'firebase/auth';
 import { auth, db } from '../firebase';
-import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { doc, getDoc, setDoc, collection, query, where, getDocs } from 'firebase/firestore';
 
 const AuthContext = createContext();
 
-const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3001';
+import { BACKEND_URL } from '../config';
 
 export const AuthProvider = ({ children }) => {
     const [user, setUser] = useState(null);
@@ -31,15 +32,24 @@ export const AuthProvider = ({ children }) => {
 
                 // Check Firestore for additional user data (role, username)
                 const userDoc = await getDoc(doc(db, 'users', firebaseUser.uid));
+
+                // Fetch ownerships
+                const ownershipsQuery = query(collection(db, 'ownerships'), where('userId', '==', firebaseUser.uid));
+                const ownershipsSnap = await getDocs(ownershipsQuery);
+                const ownedGames = ownershipsSnap.docs
+                    .filter(doc => new Date(doc.data().expiresAt?.toDate ? doc.data().expiresAt.toDate() : doc.data().expiresAt) > new Date())
+                    .map(doc => doc.data().gameId);
+
                 if (userDoc.exists()) {
-                    setUser({ id: firebaseUser.uid, ...userDoc.data() });
+                    setUser({ id: firebaseUser.uid, ...userDoc.data(), ownedGames });
                 } else {
                     // Fallback to basic info if doc doesn't exist yet
                     setUser({
                         id: firebaseUser.uid,
                         email: firebaseUser.email,
                         displayName: firebaseUser.displayName,
-                        role: 'USER'
+                        role: 'USER',
+                        ownedGames
                     });
                 }
             } else {
@@ -58,16 +68,16 @@ export const AuthProvider = ({ children }) => {
         return userCredential.user;
     };
 
-    const register = async (email, password, displayName) => {
+    const register = async (email, password, displayName, username, age) => {
         const userCredential = await createUserWithEmailAndPassword(auth, email, password);
         const user = userCredential.user;
 
         // Create profile in Firestore
-        const username = email.split('@')[0].replace(/[^a-zA-Z0-9]/g, '');
         const userData = {
-            username,
+            username: username || email.split('@')[0].replace(/[^a-zA-Z0-9]/g, ''),
             displayName,
             email,
+            age: parseInt(age) || 0,
             role: 'USER',
             createdAt: new Date().toISOString()
         };
@@ -83,7 +93,7 @@ export const AuthProvider = ({ children }) => {
                     'Content-Type': 'application/json',
                     'Authorization': `Bearer ${idToken}`
                 },
-                body: JSON.stringify({ displayName })
+                body: JSON.stringify({ displayName, age })
             });
         } catch (e) {
             console.error("Welcome email sync failed", e);
@@ -92,10 +102,9 @@ export const AuthProvider = ({ children }) => {
         return user;
     };
 
-    const loginWithGoogle = async (credential) => {
-        // credential here is the Google ID Token from @react-oauth/google
-        const fbCredential = GoogleAuthProvider.credential(credential);
-        const userCredential = await signInWithCredential(auth, fbCredential);
+    const loginWithGoogle = async () => {
+        const provider = new GoogleAuthProvider();
+        const userCredential = await signInWithPopup(auth, provider);
         const user = userCredential.user;
 
         // Ensure user document exists in Firestore
@@ -145,7 +154,17 @@ export const AuthProvider = ({ children }) => {
 
         // Refresh state locally
         const userDoc = await getDoc(doc(db, 'users', user.id));
-        if (userDoc.exists()) setUser({ id: user.id, ...userDoc.data() });
+
+        // Fetch ownerships
+        const ownershipsQuery = query(collection(db, 'ownerships'), where('userId', '==', user.id));
+        const ownershipsSnap = await getDocs(ownershipsQuery);
+        const ownedGames = ownershipsSnap.docs
+            .filter(doc => new Date(doc.data().expiresAt?.toDate ? doc.data().expiresAt.toDate() : doc.data().expiresAt) > new Date())
+            .map(doc => doc.data().gameId);
+
+        if (userDoc.exists()) {
+            setUser({ id: user.id, ...userDoc.data(), ownedGames });
+        }
 
         return data;
     };

@@ -12,68 +12,70 @@ import SameSameApp from './pages/SameSameApp';
 import AdminDashboard from './pages/AdminDashboard';
 import Login from './pages/Login';
 import Register from './pages/Register';
+import UserDashboard from './pages/UserDashboard';
+import TermsAndConditions from './pages/TermsAndConditions';
 import ProtectedRoute from './components/ProtectedRoute';
 import { AuthProvider } from './context/AuthContext';
-import { GoogleOAuthProvider } from '@react-oauth/google';
-
-const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || 'dummy_client_id';
-
 function App() {
     return (
-        <GoogleOAuthProvider clientId={GOOGLE_CLIENT_ID}>
-            <AuthProvider>
-                <Router>
-                    <Routes>
-                        <Route path="/" element={<Home />} />
-                        <Route path="/trivia" element={
-                            <ProtectedRoute gameId="trivia">
-                                <TriviaApp />
-                            </ProtectedRoute>
-                        } />
-                        <Route path="/imposter" element={
-                            <ProtectedRoute gameId="imposter">
-                                <ImposterApp />
-                            </ProtectedRoute>
-                        } />
-                        <Route path="/charades" element={
-                            <ProtectedRoute gameId="charades">
-                                <CharadesApp />
-                            </ProtectedRoute>
-                        } />
-                        <Route path="/jeopardy" element={
-                            <ProtectedRoute gameId="jeopardy">
-                                <JeopardyApp />
-                            </ProtectedRoute>
-                        } />
-                        <Route path="/tictactoe" element={
-                            <ProtectedRoute gameId="tictactoe">
-                                <TicTacToeApp />
-                            </ProtectedRoute>
-                        } />
-                        <Route path="/cahoot" element={
-                            <ProtectedRoute gameId="cahoot">
-                                <CahootApp />
-                            </ProtectedRoute>
-                        } />
-                        <Route path="/seenjeem" element={
-                            <ProtectedRoute gameId="seenjeem">
-                                <SeenJeemApp />
-                            </ProtectedRoute>
-                        } />
-                        <Route path="/samesame" element={
-                            <ProtectedRoute gameId="same_same">
-                                <SameSameApp />
-                            </ProtectedRoute>
-                        } />
-                        <Route path="/admin" element={
-                            <AdminDashboard />
-                        } />
-                        <Route path="/login" element={<Login />} />
-                        <Route path="/register" element={<Register />} />
-                    </Routes>
-                </Router>
-            </AuthProvider>
-        </GoogleOAuthProvider>
+        <AuthProvider>
+            <Router>
+                <Routes>
+                    <Route path="/" element={<Home />} />
+                    <Route path="/trivia" element={
+                        <ProtectedRoute gameId="trivia">
+                            <TriviaApp />
+                        </ProtectedRoute>
+                    } />
+                    <Route path="/imposter" element={
+                        <ProtectedRoute gameId="imposter">
+                            <ImposterApp />
+                        </ProtectedRoute>
+                    } />
+                    <Route path="/charades" element={
+                        <ProtectedRoute gameId="charades">
+                            <CharadesApp />
+                        </ProtectedRoute>
+                    } />
+                    <Route path="/jeopardy" element={
+                        <ProtectedRoute gameId="jeopardy">
+                            <JeopardyApp />
+                        </ProtectedRoute>
+                    } />
+                    <Route path="/tictactoe" element={
+                        <ProtectedRoute gameId="tictactoe">
+                            <TicTacToeApp />
+                        </ProtectedRoute>
+                    } />
+                    <Route path="/cahoot" element={
+                        <ProtectedRoute gameId="cahoot">
+                            <CahootApp />
+                        </ProtectedRoute>
+                    } />
+                    <Route path="/seenjeem" element={
+                        <ProtectedRoute gameId="seenjeem">
+                            <SeenJeemApp />
+                        </ProtectedRoute>
+                    } />
+                    <Route path="/samesame" element={
+                        <ProtectedRoute gameId="same_same">
+                            <SameSameApp />
+                        </ProtectedRoute>
+                    } />
+                    <Route path="/admin" element={
+                        <AdminDashboard />
+                    } />
+                    <Route path="/login" element={<Login />} />
+                    <Route path="/register" element={<Register />} />
+                    <Route path="/dashboard" element={
+                        <ProtectedRoute>
+                            <UserDashboard />
+                        </ProtectedRoute>
+                    } />
+                    <Route path="/terms" element={<TermsAndConditions />} />
+                </Routes>
+            </Router>
+        </AuthProvider>
     );
 }
 
