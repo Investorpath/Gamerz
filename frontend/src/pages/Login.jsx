@@ -4,7 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import AppleSignin from 'react-apple-signin-auth';
 
 function Login() {
-    const [username, setUsername] = useState('');
+    const [emailOrUsername, setEmailOrUsername] = useState('');
     const [password, setPassword] = useState('');
     const [error, setError] = useState('');
     const [isLoading, setIsLoading] = useState(false);
@@ -16,7 +16,7 @@ function Login() {
         setIsLoading(true);
         setError('');
         try {
-            await login(username, password);
+            await login(emailOrUsername, password);
             navigate('/');
         } catch (err) {
             setError(err.message);
@@ -83,16 +83,16 @@ function Login() {
 
                 <form onSubmit={handleSubmit} className="space-y-6">
                     <div className="space-y-2 stagger-2 animate-reveal">
-                        <label className="block text-slate-300 font-bold text-sm px-2">اسم المستخدم</label>
+                        <label className="block text-slate-300 font-bold text-sm px-2">البريد الإلكتروني أو اسم المستخدم</label>
                         <div className="relative group">
                             <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500 group-focus-within:text-indigo-400 transition-colors">👤</span>
                             <input
                                 type="text"
                                 required
-                                value={username}
-                                onChange={(e) => setUsername(e.target.value)}
+                                value={emailOrUsername}
+                                onChange={(e) => setEmailOrUsername(e.target.value)}
                                 className="w-full premium-input text-white rounded-2xl pl-12 pr-4 py-4 focus:outline-none dir-ltr text-right"
-                                placeholder="username"
+                                placeholder="email or username"
                             />
                         </div>
                     </div>

@@ -63,12 +63,37 @@ export const AuthProvider = ({ children }) => {
         return () => unsubscribe();
     }, []);
 
-    const login = async (email, password) => {
+    const login = async (emailOrUsername, password) => {
+        let email = emailOrUsername;
+
+        // Check if input is email or username
+        if (!emailOrUsername.includes('@')) {
+            // It's a username, look up the email in Firestore
+            const usersRef = collection(db, 'users');
+            const q = query(usersRef, where('username', '==', emailOrUsername));
+            const querySnapshot = await getDocs(q);
+
+            if (querySnapshot.empty) {
+                throw new Error("لم يتم العثور على مستخدم بهذا الاسم.");
+            }
+
+            email = querySnapshot.docs[0].data().email;
+        }
+
         const userCredential = await signInWithEmailAndPassword(auth, email, password);
         return userCredential.user;
     };
 
     const register = async (email, password, displayName, username, age) => {
+        // Enforce unique username
+        const usersRef = collection(db, 'users');
+        const q = query(usersRef, where('username', '==', username));
+        const querySnapshot = await getDocs(q);
+
+        if (!querySnapshot.empty) {
+            throw new Error("اسم المستخدم هذا مستخدم بالفعل. اختر اسماً آخر.");
+        }
+
         const userCredential = await createUserWithEmailAndPassword(auth, email, password);
         const user = userCredential.user;
 
