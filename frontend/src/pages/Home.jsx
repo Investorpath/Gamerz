@@ -10,6 +10,7 @@ function Home() {
     const [selectedGameToPurchase, setSelectedGameToPurchase] = useState(null);
     const [selectedBundleForSelection, setSelectedBundleForSelection] = useState(null);
     const [joinRoomId, setJoinRoomId] = useState('');
+    const [selectedJoinGame, setSelectedJoinGame] = useState('trivia');
     const [isJoining, setIsJoining] = useState(false);
     const games = [
         {
@@ -218,30 +219,40 @@ function Home() {
                     <div>
                         {user ? (
                             <div className="flex items-center gap-4">
-                                <div className="flex items-center bg-slate-800/50 border border-slate-700 rounded-xl overflow-hidden focus-within:ring-2 focus-within:ring-indigo-500/50 transition-all">
-                                    <input
-                                        type="text"
-                                        placeholder="رمز الغرفة"
-                                        value={joinRoomId}
-                                        onChange={(e) => setJoinRoomId(e.target.value.toUpperCase())}
-                                        className="bg-transparent text-white px-3 py-2 w-24 md:w-32 outline-none text-center font-mono font-bold tracking-widest placeholder:text-slate-600"
-                                        maxLength={6}
-                                    />
-                                    <button
-                                        onClick={() => {
-                                            if (joinRoomId.length === 6) {
-                                                // We need to know which game this room belongs to.
-                                                // For now, we'll try to find it or redirect to a general join handler if we had one.
-                                                // Since we don't have a global join yet, let's just alert or navigate to a game-specific join.
-                                                // BETTER: Navigate to a dedicated join page or just show a message.
-                                                // Let's assume most rooms are currently trivia or sahut for testing.
-                                                window.location.href = `/cahoot?join=${joinRoomId}`;
-                                            }
-                                        }}
-                                        className="bg-indigo-600 hover:bg-indigo-500 text-white px-3 py-2 font-bold transition-colors"
-                                    >
-                                        دخول
-                                    </button>
+                                <div className="flex flex-col md:flex-row items-center gap-2">
+                                    <div className="flex items-center bg-slate-800/50 border border-slate-700 rounded-xl overflow-hidden focus-within:ring-2 focus-within:ring-indigo-500/50 transition-all">
+                                        <select
+                                            value={selectedJoinGame}
+                                            onChange={(e) => setSelectedJoinGame(e.target.value)}
+                                            className="bg-slate-800 text-slate-300 px-2 py-2 outline-none border-r border-slate-700 text-sm font-bold"
+                                        >
+                                            <option value="trivia">تحدي المعرفة</option>
+                                            <option value="cahoot">كاهوت</option>
+                                            <option value="seenjeem">سين جيم</option>
+                                            <option value="imposter">المحتال</option>
+                                            <option value="charades">بدون كلام</option>
+                                            <option value="jeopardy">سؤال وجواب</option>
+                                            <option value="samesame">أهم حاجة النية</option>
+                                        </select>
+                                        <input
+                                            type="text"
+                                            placeholder="رمز الغرفة"
+                                            value={joinRoomId}
+                                            onChange={(e) => setJoinRoomId(e.target.value.toUpperCase())}
+                                            className="bg-transparent text-white px-3 py-2 w-24 md:w-32 outline-none text-center font-mono font-bold tracking-widest placeholder:text-slate-600"
+                                            maxLength={6}
+                                        />
+                                        <button
+                                            onClick={() => {
+                                                if (joinRoomId.length === 6) {
+                                                    window.location.href = `/${selectedJoinGame}?join=${joinRoomId}`;
+                                                }
+                                            }}
+                                            className="bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-2 font-bold transition-colors"
+                                        >
+                                            دخول
+                                        </button>
+                                    </div>
                                 </div>
                                 <span className="text-slate-300 font-bold hidden lg:inline">مرحباً، {user.displayName}</span>
                                 {isAdmin && (

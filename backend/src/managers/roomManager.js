@@ -103,6 +103,10 @@ function cleanupInactiveRooms(io) {
 }
 
 async function joinRoom(io, socket, { roomId, playerName, gameType, userId, jeopardyQuestions = [] }) {
+    if (rooms[roomId] && rooms[roomId].gameType !== gameType) {
+        throw new Error('GameTypeMismatch');
+    }
+
     socket.join(roomId);
 
     const room = initRoom(roomId, gameType || 'trivia', jeopardyQuestions);

@@ -17,8 +17,31 @@ function ImposterApp() {
     const [timer, setTimer] = useState(0);
     const [hostId, setHostId] = useState(null);
 
+    // Refs to avoid stale closures in socket listeners
+    const inRoomRef = useRef(inRoom);
+    const roomIdRef = useRef(roomId);
+    const playerNameRef = useRef(user?.displayName);
+
+    useEffect(() => {
+        inRoomRef.current = inRoom;
+        roomIdRef.current = roomId;
+        playerNameRef.current = user?.displayName;
+    }, [inRoom, roomId, user]);
+
     useEffect(() => {
         if (!socket) return;
+
+        // 1. Setup Listeners
+        socket.on('connect', () => {
+            if (inRoomRef.current && roomIdRef.current) {
+                socket.emit('join_room', {
+                    roomId: roomIdRef.current,
+                    playerName: playerNameRef.current,
+                    gameType: 'imposter',
+                    userId: user?.id
+                });
+            }
+        });
 
         socket.on('update_players', (playersList) => setPlayers(playersList));
         socket.on('game_status', (status) => setGameStatus(status));
@@ -30,7 +53,23 @@ function ImposterApp() {
             setInRoom(false);
         });
 
+        // 2. Initial Join/Auto-join
+        const urlParams = new URLSearchParams(window.location.search);
+        const joinId = urlParams.get('join');
+        if (joinId && joinId.length === 6 && user) {
+            const rid = joinId.toUpperCase();
+            setRoomId(rid);
+            socket.emit('join_room', {
+                roomId: rid,
+                playerName: user.displayName,
+                gameType: 'imposter',
+                userId: user.id
+            });
+            setInRoom(true);
+        }
+
         return () => {
+            socket.off('connect');
             socket.off('update_players');
             socket.off('game_status');
             socket.off('imposter_role');
@@ -38,7 +77,7 @@ function ImposterApp() {
             socket.off('room_host');
             socket.off('game_error');
         };
-    }, [socket]);
+    }, [socket, user]);
 
     const joinRoom = (e) => {
         e.preventDefault();

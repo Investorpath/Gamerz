@@ -2,13 +2,14 @@ import React, { useState, useEffect, useRef } from 'react';
 import { io } from 'socket.io-client';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
+import { useSocket } from '../hooks/useSocket';
 
 import { BACKEND_URL } from '../config';
 
 function SameSameApp() {
     const { user, token } = useAuth();
     const navigate = useNavigate();
-    const [socket, setSocket] = useState(null);
+    const socket = useSocket();
     const [roomId, setRoomId] = useState('');
     const [players, setPlayers] = useState([]);
     const [status, setStatus] = useState('lobby'); // lobby, playing, judging, round_winner, finished
@@ -29,40 +30,37 @@ function SameSameApp() {
 
     const roomIdInputRef = useRef(null);
 
+    // Refs to avoid stale closures in socket listeners
+    const roomIdRef = useRef(roomId);
+
     useEffect(() => {
-        if (!user || (!user.id && !user.userId)) {
-            navigate('/login');
-            return;
-        }
+        roomIdRef.current = roomId;
+    }, [roomId]);
 
-        const newSocket = io(BACKEND_URL, {
-            auth: { token }
+    useEffect(() => {
+        if (!socket) return;
+
+        socket.on('connect', () => {
+            if (roomIdRef.current) {
+                socket.emit('join_room', {
+                    roomId: roomIdRef.current,
+                    playerName: user?.displayName || 'لاعب',
+                    gameType: 'same_same',
+                    userId: user?.id || user?.userId
+                });
+            }
         });
 
-        newSocket.on('connect', () => {
-            console.log('Connected to Same Same server:', newSocket.id);
-            setSocket(newSocket);
-        });
-
-        newSocket.on('connect_error', (err) => {
-            console.error("Socket Connect Error:", err.message);
-            setError(`فشل الاتصال: ${err.message}`);
-        });
-
-        newSocket.on('error', (errMsg) => {
-            setError(errMsg);
-        });
-
-        newSocket.on('game_error', (msg) => {
+        socket.on('game_error', (msg) => {
             setError(msg);
             setRoomId(''); // Reset room ID so user can try again
         });
 
-        newSocket.on('update_players', (playerList) => {
+        socket.on('update_players', (playerList) => {
             setPlayers(playerList);
         });
 
-        newSocket.on('game_status', (serverStatus) => {
+        socket.on('game_status', (serverStatus) => {
             setGameStatus(serverStatus);
             if (serverStatus === 'waiting') setStatus('lobby');
             else if (serverStatus === 'playing') setStatus('playing');
@@ -71,17 +69,17 @@ function SameSameApp() {
             else if (serverStatus === 'finished') setStatus('finished');
         });
 
-        newSocket.on('room_host', (hostSocketId) => {
-            if (hostSocketId === newSocket.id) {
+        socket.on('room_host', (hostSocketId) => {
+            if (hostSocketId === socket.id) {
                 setIsHost(true);
             }
         });
 
-        newSocket.on('timer', (time) => {
+        socket.on('timer', (time) => {
             setTimer(time);
         });
 
-        newSocket.on('samesame_turn', (data) => {
+        socket.on('samesame_turn', (data) => {
             setIsJudge(data.isJudge);
             setJudgeName(data.judgeName);
             setScenarios(data.scenarios);
@@ -93,24 +91,33 @@ function SameSameApp() {
             setRoundWinner(null);
         });
 
-        newSocket.on('samesame_answers_count', (count) => {
+        socket.on('samesame_answers_count', (count) => {
             setSubmittedCount(count);
         });
 
-        newSocket.on('samesame_judging', (answers) => {
+        socket.on('samesame_judging', (answers) => {
             setAnonymousAnswers(answers);
             setStatus('judging');
         });
 
-        newSocket.on('samesame_winner', (winnerData) => {
+        socket.on('samesame_winner', (winnerData) => {
             setRoundWinner(winnerData);
             setStatus('round_winner');
         });
 
         return () => {
-            newSocket.disconnect();
+            socket.off('connect');
+            socket.off('game_error');
+            socket.off('update_players');
+            socket.off('game_status');
+            socket.off('room_host');
+            socket.off('timer');
+            socket.off('samesame_turn');
+            socket.off('samesame_answers_count');
+            socket.off('samesame_judging');
+            socket.off('samesame_winner');
         };
-    }, [user, navigate, token]);
+    }, [socket, user]);
 
     const joinRoom = (e) => {
         e.preventDefault();

@@ -16,6 +16,17 @@ function SeenJeemApp() {
     const [hostId, setHostId] = useState(null);
     const [timer, setTimer] = useState(0);
 
+    // Refs to avoid stale closures in socket listeners
+    const inRoomRef = useRef(inRoom);
+    const roomIdRef = useRef(roomId);
+    const playerNameRef = useRef(playerName);
+
+    useEffect(() => {
+        inRoomRef.current = inRoom;
+        roomIdRef.current = roomId;
+        playerNameRef.current = playerName;
+    }, [inRoom, roomId, playerName]);
+
     // Seen Jeem Specific State
     const [currentQuestion, setCurrentQuestion] = useState(null);
     const [myAnswer, setMyAnswer] = useState('');
@@ -33,22 +44,19 @@ function SeenJeemApp() {
     }, [user]);
 
     useEffect(() => {
-        const urlParams = new URLSearchParams(window.location.search);
-        const joinId = urlParams.get('join');
-        if (joinId && joinId.length === 6 && socket && user) {
-            setRoomId(joinId.toUpperCase());
-            socket.emit('join_room', {
-                roomId: joinId.toUpperCase(),
-                playerName: user.displayName,
-                gameType: 'seenjeem',
-                userId: user.id
-            });
-            setInRoom(true);
-        }
-    }, [socket, user]);
-
-    useEffect(() => {
         if (!socket) return;
+
+        // 1. Setup Listeners
+        socket.on('connect', () => {
+            if (inRoomRef.current && roomIdRef.current) {
+                socket.emit('join_room', {
+                    roomId: roomIdRef.current,
+                    playerName: playerNameRef.current,
+                    gameType: 'seenjeem',
+                    userId: user?.id
+                });
+            }
+        });
 
         socket.on('update_players', (playersList) => setPlayers(playersList));
         socket.on('game_status', (status) => setGameStatus(status));
@@ -56,17 +64,15 @@ function SeenJeemApp() {
         socket.on('timer', (t) => setTimer(t));
         socket.on('game_error', (msg) => {
             alert(msg);
-            setInRoom(false); // Reset state if join or game fails
+            setInRoom(false);
         });
 
-        // Question Events
         socket.on('seenjeem_new_question', (qData) => {
             setCurrentQuestion(qData);
             setMyAnswer('');
             setHasAnswered(false);
             setCorrectAnswer('');
             setNotifications([]);
-            // Auto-focus input when new question appears
             setTimeout(() => inputRef.current?.focus(), 100);
         });
 
@@ -78,7 +84,23 @@ function SeenJeemApp() {
             setNotifications(prev => [...prev, `${playerName} أجاب إجابة صحيحة ! (+${points})`]);
         });
 
+        // 2. Initial Join/Auto-join
+        const urlParams = new URLSearchParams(window.location.search);
+        const joinId = urlParams.get('join');
+        if (joinId && joinId.length === 6 && user) {
+            const rid = joinId.toUpperCase();
+            setRoomId(rid);
+            socket.emit('join_room', {
+                roomId: rid,
+                playerName: user.displayName,
+                gameType: 'seenjeem',
+                userId: user.id
+            });
+            setInRoom(true);
+        }
+
         return () => {
+            socket.off('connect');
             socket.off('update_players');
             socket.off('game_status');
             socket.off('room_host');
@@ -88,7 +110,7 @@ function SeenJeemApp() {
             socket.off('seenjeem_reveal');
             socket.off('seenjeem_correct_guess');
         };
-    }, [user, socket]); // Re-run if user or socket changes
+    }, [user, socket]);
 
     const handleJoinOrCreate = (e) => {
         e.preventDefault();

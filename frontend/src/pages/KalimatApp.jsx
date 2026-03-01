@@ -51,6 +51,13 @@ function KalimatApp() {
 
     const letterStatuses = getLetterStatuses();
 
+    // Refs to avoid stale closures in socket listeners
+    const roomIdRef = useRef(roomId);
+
+    useEffect(() => {
+        roomIdRef.current = roomId;
+    }, [roomId]);
+
     // Auto-join on mount
     useEffect(() => {
         if (socket && user) {
@@ -67,6 +74,17 @@ function KalimatApp() {
 
     useEffect(() => {
         if (!socket) return;
+
+        socket.on('connect', () => {
+            if (roomIdRef.current) {
+                socket.emit('join_room', {
+                    roomId: roomIdRef.current,
+                    playerName: user?.displayName || 'لاعب',
+                    gameType: 'kalimat',
+                    userId: user?.id || user?.uid
+                });
+            }
+        });
 
         socket.on('game_status', (status) => setGameStatus(status));
 

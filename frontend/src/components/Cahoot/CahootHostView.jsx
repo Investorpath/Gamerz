@@ -39,7 +39,7 @@ const CahootHostView = ({
                             </button>
                         </div>
                         <div className="mt-12 flex flex-wrap justify-center gap-4 max-w-4xl">
-                            {players.filter(p => p.name !== user?.displayName).map((p, i) => (
+                            {players.filter(p => p.id !== socket?.id).map((p, i) => (
                                 <div key={i} className="bg-white px-6 py-3 rounded-xl shadow-md text-xl font-bold text-slate-700">{p.name || 'لاعب'}</div>
                             ))}
                         </div>

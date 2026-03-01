@@ -22,8 +22,42 @@ function JeopardyApp() {
     const [options, setOptions] = useState(null);
     const [hostId, setHostId] = useState(null);
 
+    // Refs to avoid stale closures in socket listeners
+    const roomIdRef = useRef(roomId);
+
+    useEffect(() => {
+        roomIdRef.current = roomId;
+    }, [roomId]);
+
+    // Auto-join from URL on mount
+    useEffect(() => {
+        const params = new URLSearchParams(window.location.search);
+        const joinId = params.get('join');
+        if (joinId && socket && user) {
+            setRoomId(joinId.toUpperCase());
+            socket.emit('join_room', {
+                roomId: joinId.toUpperCase(),
+                playerName: user.displayName || 'لاعب',
+                gameType: 'jeopardy',
+                userId: user.id || user.uid
+            });
+            setInRoom(true);
+        }
+    }, [socket, user]);
+
     useEffect(() => {
         if (!socket) return;
+
+        socket.on('connect', () => {
+            if (roomIdRef.current) {
+                socket.emit('join_room', {
+                    roomId: roomIdRef.current,
+                    playerName: user?.displayName || 'لاعب',
+                    gameType: 'jeopardy',
+                    userId: user?.id || user?.uid
+                });
+            }
+        });
 
         socket.on('update_players', (playersList) => setPlayers(playersList));
         socket.on('game_status', (status) => setGameStatus(status));
@@ -55,6 +89,7 @@ function JeopardyApp() {
         });
 
         return () => {
+            socket.off('connect');
             socket.off('update_players');
             socket.off('game_status');
             socket.off('room_host');
@@ -64,7 +99,7 @@ function JeopardyApp() {
             socket.off('jeopardy_buzzed');
             socket.off('jeopardy_options');
         };
-    }, [socket]);
+    }, [socket, user]);
 
     const joinRoom = (e) => {
         e.preventDefault();

@@ -5,6 +5,10 @@ const { isAuthenticated } = require('../../securityMiddleware');
 const { sendPurchaseConfirmationEmail } = require('../../emailService');
 
 router.post('/mock', isAuthenticated, async (req, res) => {
+    console.log('Received checkout request:', {
+        body: req.body,
+        user: req.user.userId
+    });
     try {
         const { gameId, packageId, selectedGames } = req.body;
         const userId = req.user.userId;

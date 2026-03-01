@@ -16,6 +16,17 @@ function TriviaApp() {
   const [players, setPlayers] = useState([]);
   const [hostId, setHostId] = useState(null);
 
+  // Refs to avoid stale closures in socket listeners
+  const inRoomRef = useRef(inRoom);
+  const roomIdRef = useRef(roomId);
+  const playerNameRef = useRef(playerName);
+
+  useEffect(() => {
+    inRoomRef.current = inRoom;
+    roomIdRef.current = roomId;
+    playerNameRef.current = playerName;
+  }, [inRoom, roomId, playerName]);
+
   useEffect(() => {
     if (user && !playerName) {
       setPlayerName(user.displayName);
@@ -23,22 +34,19 @@ function TriviaApp() {
   }, [user]);
 
   useEffect(() => {
-    const urlParams = new URLSearchParams(window.location.search);
-    const joinId = urlParams.get('join');
-    if (joinId && joinId.length === 6 && socket && user) {
-      setRoomId(joinId.toUpperCase());
-      socket.emit('join_room', {
-        roomId: joinId.toUpperCase(),
-        playerName: user.displayName,
-        gameType: 'trivia',
-        userId: user.id
-      });
-      setInRoom(true);
-    }
-  }, [socket, user]);
-
-  useEffect(() => {
     if (!socket) return;
+
+    // 1. Setup Listeners
+    socket.on('connect', () => {
+      if (inRoomRef.current && roomIdRef.current) {
+        socket.emit('join_room', {
+          roomId: roomIdRef.current,
+          playerName: playerNameRef.current,
+          gameType: 'trivia',
+          userId: user?.id
+        });
+      }
+    });
 
     socket.on('update_players', (playersList) => {
       setPlayers(playersList);
@@ -52,12 +60,34 @@ function TriviaApp() {
       setHostId(id);
     });
 
+    socket.on('game_error', (msg) => {
+      alert(msg);
+      setInRoom(false);
+    });
+
+    // 2. Initial Join/Auto-join
+    const urlParams = new URLSearchParams(window.location.search);
+    const joinId = urlParams.get('join');
+    if (joinId && joinId.length === 6 && user) {
+      const rid = joinId.toUpperCase();
+      setRoomId(rid);
+      socket.emit('join_room', {
+        roomId: rid,
+        playerName: user.displayName,
+        gameType: 'trivia',
+        userId: user.id
+      });
+      setInRoom(true);
+    }
+
     return () => {
+      socket.off('connect');
       socket.off('update_players');
       socket.off('game_status');
       socket.off('room_host');
+      socket.off('game_error');
     };
-  }, [socket]);
+  }, [socket, user]);
 
   const handleJoinOrCreate = (e) => {
     e.preventDefault();

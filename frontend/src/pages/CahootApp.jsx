@@ -11,46 +11,33 @@ function CahootApp() {
     const socket = useSocket();
     const [roomId, setRoomId] = useState('');
     const [inRoom, setInRoom] = useState(false);
-    const [gameState, setGameState] = useState('waiting');
+    const [timer, setTimer] = useState(0);
+
+    // Refs to avoid stale closures in socket listeners
+    const inRoomRef = useRef(inRoom);
+    const roomIdRef = useRef(roomId);
+    const playerNameRef = useRef(user?.displayName);
 
     useEffect(() => {
-        const urlParams = new URLSearchParams(window.location.search);
-        const joinId = urlParams.get('join');
-        if (joinId && joinId.length === 6) {
-            setRoomId(joinId.toUpperCase());
-            // If we have a user and socket, we can try to auto-join
-            if (user && socket) {
-                socket.emit('join_room', {
-                    roomId: joinId.toUpperCase(),
-                    playerName: user.displayName,
-                    gameType: 'cahoot',
-                    userId: user.id
-                });
-                setInRoom(true);
-            }
-        }
-    }, [user, socket]);
-
-    // Room Data
-    const [players, setPlayers] = useState([]);
-    const [hostId, setHostId] = useState(null);
-
-    // Game Data
-    const [currentQuestion, setCurrentQuestion] = useState(null);
-    const [timer, setTimer] = useState(0);
-    const [correctAnswerIndex, setCorrectAnswerIndex] = useState(null);
-    const [hasAnswered, setHasAnswered] = useState(false);
-    const [myAnswerIndex, setMyAnswerIndex] = useState(null);
-
-    // Host metrics
-    const [answersReceivedCount, setAnswersReceivedCount] = useState({ count: 0, total: 0 });
-
-    // Custom Questions
-    const [showCustomModal, setShowCustomModal] = useState(false);
-    const [customQuestions, setCustomQuestions] = useState([]);
+        inRoomRef.current = inRoom;
+        roomIdRef.current = roomId;
+        playerNameRef.current = user?.displayName;
+    }, [inRoom, roomId, user]);
 
     useEffect(() => {
         if (!socket) return;
+
+        // 1. Setup Listeners
+        socket.on('connect', () => {
+            if (inRoomRef.current && roomIdRef.current) {
+                socket.emit('join_room', {
+                    roomId: roomIdRef.current,
+                    playerName: playerNameRef.current,
+                    gameType: 'cahoot',
+                    userId: user?.id
+                });
+            }
+        });
 
         socket.on('game_error', (msg) => alert(msg));
         socket.on('room_host', (hid) => setHostId(hid));
@@ -70,7 +57,23 @@ function CahootApp() {
         socket.on('cahoot_reveal', (idx) => setCorrectAnswerIndex(idx));
         socket.on('cahoot_podium', (list) => setPlayers(list.sort((a, b) => b.score - a.score)));
 
+        // 2. Handle Auto-join ONLY AFTER listeners are ready
+        const urlParams = new URLSearchParams(window.location.search);
+        const joinId = urlParams.get('join');
+        if (joinId && joinId.length === 6 && user) {
+            const rid = joinId.toUpperCase();
+            setRoomId(rid);
+            socket.emit('join_room', {
+                roomId: rid,
+                playerName: user.displayName,
+                gameType: 'cahoot',
+                userId: user.id
+            });
+            setInRoom(true);
+        }
+
         return () => {
+            socket.off('connect');
             socket.off('game_error');
             socket.off('room_host');
             socket.off('update_players');
@@ -81,7 +84,7 @@ function CahootApp() {
             socket.off('cahoot_reveal');
             socket.off('cahoot_podium');
         };
-    }, [socket]);
+    }, [user, socket]);
 
     const handleCreateRoom = () => {
         const id = Math.random().toString(36).substring(2, 8).toUpperCase();
@@ -126,6 +129,7 @@ function CahootApp() {
 
     if (isHost) {
         return <CahootHostView
+            socket={socket}
             roomId={roomId}
             gameState={gameState}
             players={players}

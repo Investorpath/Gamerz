@@ -34,15 +34,25 @@ const app = express();
 const allowedOrigins = [
     'http://localhost:5173',
     'http://127.0.0.1:5173',
+    'http://localhost:3000',
+    'http://127.0.0.1:3000',
     'https://gamerz-e22c0.web.app',
     'https://gamerz-e22c0.firebaseapp.com'
 ];
 
+// Add FRONTEND_URL from env if present
+if (process.env.FRONTEND_URL) {
+    allowedOrigins.push(process.env.FRONTEND_URL);
+}
+
 app.use(cors({
     origin: function (origin, callback) {
-        if (!origin || allowedOrigins.indexOf(origin) !== -1) {
+        // Allow requests with no origin (like mobile apps or curl) or allowed origins
+        // Also allow any render.com subdomains
+        if (!origin || allowedOrigins.indexOf(origin) !== -1 || origin.endsWith('.render.com')) {
             callback(null, true);
         } else {
+            console.warn(`CORS blocked for origin: ${origin}`);
             callback(new Error('Not allowed by CORS'));
         }
     },

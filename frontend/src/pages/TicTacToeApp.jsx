@@ -10,16 +10,34 @@ function TicTacToeApp() {
     const [roomId, setRoomId] = useState('');
     const [inRoom, setInRoom] = useState(false);
     const [status, setStatus] = useState('waiting');
-    const [players, setPlayers] = useState([]);
     const [board, setBoard] = useState(Array(9).fill(null));
     const [xIsNext, setXIsNext] = useState(true);
     const [playerX, setPlayerX] = useState('');
     const [playerO, setPlayerO] = useState('');
     const [winner, setWinner] = useState(null);
+    const [players, setPlayers] = useState([]);
     const [errorMsg, setErrorMsg] = useState('');
+
+    // Refs to avoid stale closures in socket listeners
+    const roomIdRef = useRef(roomId);
+
+    useEffect(() => {
+        roomIdRef.current = roomId;
+    }, [roomId]);
 
     useEffect(() => {
         if (!socket) return;
+
+        socket.on('connect', () => {
+            if (roomIdRef.current) {
+                socket.emit('join_room', {
+                    roomId: roomIdRef.current,
+                    playerName: user?.displayName || 'لاعب',
+                    gameType: 'tictactoe',
+                    userId: user?.id || user?.uid
+                });
+            }
+        });
 
         socket.on('update_players', (playersList) => {
             setPlayers(playersList);
@@ -43,12 +61,13 @@ function TicTacToeApp() {
         });
 
         return () => {
+            socket.off('connect');
             socket.off('update_players');
             socket.off('game_status');
             socket.off('tictactoe_state');
             socket.off('game_error');
         };
-    }, [socket]);
+    }, [socket, user]);
 
     const joinRoom = (e) => {
         e.preventDefault();
