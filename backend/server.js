@@ -95,82 +95,67 @@ io.on('connection', (socket) => {
         next();
     });
 
+    // Helper for Ownership Verification
+    const checkGameOwnership = async (effectiveUserId, gameType, userRole) => {
+        if (userRole === 'ADMIN') return true;
+        try {
+            const userDoc = await db.collection('users').doc(effectiveUserId).get();
+            if (userDoc.exists && userDoc.data().role === 'ADMIN') return true;
+        } catch (e) {
+            console.error("Fresh role check failed", e);
+        }
+
+        try {
+            const ownershipSnap = await db.collection('ownerships')
+                .where('userId', '==', effectiveUserId)
+                .where('gameId', '==', gameType)
+                .get();
+
+            return !ownershipSnap.empty && ownershipSnap.docs.some(doc => {
+                const data = doc.data();
+                let expiresAt;
+                if (data.expiresAt && typeof data.expiresAt.toDate === 'function') {
+                    expiresAt = data.expiresAt.toDate();
+                } else if (data.expiresAt && data.expiresAt._seconds) {
+                    expiresAt = new Date(data.expiresAt._seconds * 1000);
+                } else {
+                    expiresAt = new Date(data.expiresAt);
+                }
+                return expiresAt >= new Date();
+            });
+        } catch (err) {
+            console.error('Ownership query error:', err);
+            return false;
+        }
+    };
+
     socket.on('join_room', async ({ roomId, playerName, gameType, userId }) => {
         playerName = sanitizeInput(playerName || socket.user?.displayName || 'Unknown');
+        gameType = gameType || 'trivia';
 
-        // Ownership Verification Logic
         if (!rooms[roomId] && ['imposter', 'charades', 'jeopardy', 'cahoot', 'seenjeem', 'same_same'].includes(gameType)) {
-            const socketUserId = socket.user?.userId;
-            const effectiveUserId = socketUserId || userId;
-            let userRole = socket.user?.role || 'USER';
+            const effectiveUserId = socket.user?.userId || userId;
+            const userRole = socket.user?.role || 'USER';
 
             if (!effectiveUserId) {
                 socket.emit('game_error', 'يجب تسجيل الدخول لإنشاء غرفة مميزة.');
                 return;
             }
 
-            if (userRole === 'USER') {
-                try {
-                    const freshUserDoc = await db.collection('users').doc(effectiveUserId).get();
-                    if (freshUserDoc.exists && freshUserDoc.data().role === 'ADMIN') {
-                        userRole = 'ADMIN';
-                    }
-                } catch (e) {
-                    console.error("Fresh role check failed", e);
-                }
-            }
-
-            if (userRole !== 'ADMIN') {
-                try {
-                    const ownershipSnap = await db.collection('ownerships')
-                        .where('userId', '==', effectiveUserId)
-                        .where('gameId', '==', gameType)
-                        .get();
-
-                    const ownsGame = !ownershipSnap.empty && ownershipSnap.docs.some(doc => {
-                        const data = doc.data();
-                        let expiresAt;
-                        if (data.expiresAt && typeof data.expiresAt.toDate === 'function') {
-                            expiresAt = data.expiresAt.toDate();
-                        } else if (data.expiresAt && data.expiresAt._seconds) {
-                            expiresAt = new Date(data.expiresAt._seconds * 1000);
-                        } else {
-                            expiresAt = new Date(data.expiresAt);
-                        }
-                        return expiresAt >= new Date();
-                    });
-
-                    if (!ownsGame) {
-                        socket.emit('game_error', 'يجب عليك شراء هذه اللعبة لإنشاء غرفة.');
-                        return;
-                    }
-                } catch (err) {
-                    console.error('Ownership query error:', err);
-                    socket.emit('game_error', 'حدث خطأ أثناء التحقق من ملكية اللعبة.');
-                    return;
-                }
+            const hasAccess = await checkGameOwnership(effectiveUserId, gameType, userRole);
+            if (!hasAccess) {
+                socket.emit('game_error', 'يجب عليك شراء هذه اللعبة لإنشاء غرفة.');
+                return;
             }
         }
 
-        socket.join(roomId);
-        const room = initRoom(roomId, gameType || 'trivia', jeopardyQuestions);
-
-        await trackRoomInFirestore(roomId, gameType, socket.user?.userId || userId);
-
-        if (Object.keys(room.players).length === 0) {
-            room.hostId = socket.id;
-            room.hostSocketId = socket.id; // Correct reference for host-only actions
-        }
-
-        room.players[socket.id] = {
-            name: playerName,
-            score: 0,
-            answerSubmitted: false
-        };
-
-        io.to(roomId).emit('update_players', Object.values(room.players));
-        io.to(roomId).emit('game_status', room.status);
-        io.to(roomId).emit('room_host', room.hostId);
+        await joinRoom(io, socket, {
+            roomId,
+            playerName,
+            gameType,
+            userId: socket.user?.userId || userId,
+            jeopardyQuestions
+        });
     });
 
     socket.on('start_game', (roomId) => {
@@ -357,21 +342,6 @@ io.on('connection', (socket) => {
     });
 
     socket.on('disconnect', () => {
-        for (const roomId in rooms) {
-            if (rooms[roomId].players[socket.id]) {
-                delete rooms[roomId].players[socket.id];
-                io.to(roomId).emit('update_players', Object.values(rooms[roomId].players));
-                if (Object.keys(rooms[roomId].players).length === 0) {
-                    if (rooms[roomId].intervalId) clearInterval(rooms[roomId].intervalId);
-                    delete rooms[roomId];
-                }
-                break;
-            }
-        }
+        leaveRoom(io, socket);
     });
 });
-
-cleanupInactiveRooms(io);
-
-const PORT = process.env.PORT || 3001;
-server.listen(PORT, () => console.log(`Server listening on port ${PORT}`));

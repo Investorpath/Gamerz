@@ -98,9 +98,70 @@ function cleanupInactiveRooms(io) {
     }, 60 * 60 * 1000); // Check every hour
 }
 
+async function joinRoom(io, socket, { roomId, playerName, gameType, userId, jeopardyQuestions = [] }) {
+    socket.join(roomId);
+
+    const room = initRoom(roomId, gameType || 'trivia', jeopardyQuestions);
+
+    // Track in Firestore (Async, don't block join)
+    trackRoomInFirestore(roomId, gameType, socket.user?.userId || userId);
+
+    // If first player, they are the host
+    if (Object.keys(room.players).length === 0) {
+        room.hostId = socket.id;
+        room.hostSocketId = socket.id;
+    }
+
+    // Add player to room state
+    room.players[socket.id] = {
+        id: socket.id,
+        name: playerName,
+        score: 0,
+        answerSubmitted: false
+    };
+
+    // Broadcast updates
+    io.to(roomId).emit('update_players', Object.values(room.players));
+    io.to(roomId).emit('game_status', room.status);
+    io.to(roomId).emit('room_host', room.hostId);
+
+    return room;
+}
+
+function leaveRoom(io, socket) {
+    for (const roomId in rooms) {
+        const room = rooms[roomId];
+        if (room.players[socket.id]) {
+            console.log(`Player ${socket.id} leaving room ${roomId}`);
+            delete room.players[socket.id];
+
+            // If room is empty, cleanup
+            if (Object.keys(room.players).length === 0) {
+                if (room.intervalId) clearInterval(room.intervalId);
+                delete rooms[roomId];
+                return;
+            }
+
+            // If host left, reassign to next available player
+            if (room.hostId === socket.id) {
+                const nextHostId = Object.keys(room.players)[0];
+                room.hostId = nextHostId;
+                room.hostSocketId = nextHostId;
+                io.to(roomId).emit('room_host', room.hostId);
+            }
+
+            // Sync players
+            io.to(roomId).emit('update_players', Object.values(room.players));
+            break;
+        }
+    }
+}
+
 module.exports = {
     rooms,
     initRoom,
+    joinRoom,
+    leaveRoom,
     trackRoomInFirestore,
     cleanupInactiveRooms
 };
