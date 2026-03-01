@@ -1,8 +1,8 @@
 const express = require('express');
 const router = express.Router();
-const { db, auth } = require('../firebaseAdmin');
-const { isAuthenticated } = require('../securityMiddleware');
-const { sendWelcomeEmail } = require('../emailService');
+const { db, auth } = require('../../firebaseAdmin');
+const { isAuthenticated } = require('../../securityMiddleware');
+const { sendWelcomeEmail } = require('../../emailService');
 
 router.post('/register-sync', isAuthenticated, async (req, res) => {
     try {

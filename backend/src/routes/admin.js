@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
-const { db, admin } = require('../firebaseAdmin');
-const { isAdmin } = require('../securityMiddleware');
+const { db, admin } = require('../../firebaseAdmin');
+const { isAdmin } = require('../../securityMiddleware');
 
 router.get('/stats', isAdmin, async (req, res) => {
     try {

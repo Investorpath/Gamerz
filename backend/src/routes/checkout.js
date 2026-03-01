@@ -1,8 +1,8 @@
 const express = require('express');
 const router = express.Router();
-const { db, admin } = require('../firebaseAdmin');
-const { isAuthenticated } = require('../securityMiddleware');
-const { sendPurchaseConfirmationEmail } = require('../emailService');
+const { db, admin } = require('../../firebaseAdmin');
+const { isAuthenticated } = require('../../securityMiddleware');
+const { sendPurchaseConfirmationEmail } = require('../../emailService');
 
 router.post('/mock', isAuthenticated, async (req, res) => {
     try {

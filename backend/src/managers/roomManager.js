@@ -1,4 +1,4 @@
-const { db, admin } = require('../firebaseAdmin');
+const { db, admin } = require('../../firebaseAdmin');
 
 const rooms = {};
 
