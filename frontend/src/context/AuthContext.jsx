@@ -166,32 +166,46 @@ export const AuthProvider = ({ children }) => {
 
         const payload = { gameId, packageId, selectedGames };
 
-        const res = await fetch(`${BACKEND_URL}/api/checkout/mock`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${token}`
-            },
-            body: JSON.stringify(payload)
-        });
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.error || 'Checkout failed');
+        try {
+            const res = await fetch(`${BACKEND_URL}/api/checkout/mock`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify(payload)
+            });
 
-        // Refresh state locally
-        const userDoc = await getDoc(doc(db, 'users', user.id));
+            if (!res.ok) {
+                const data = await res.json();
+                throw new Error(data.error || `Checkout failed with status: ${res.status}`);
+            }
 
-        // Fetch ownerships
-        const ownershipsQuery = query(collection(db, 'ownerships'), where('userId', '==', user.id));
-        const ownershipsSnap = await getDocs(ownershipsQuery);
-        const ownedGames = ownershipsSnap.docs
-            .filter(doc => new Date(doc.data().expiresAt?.toDate ? doc.data().expiresAt.toDate() : doc.data().expiresAt) > new Date())
-            .map(doc => doc.data().gameId);
+            const data = await res.json();
+            console.log("Checkout success:", data);
 
-        if (userDoc.exists()) {
-            setUser({ id: user.id, ...userDoc.data(), ownedGames });
+            // Refresh state locally
+            const userDoc = await getDoc(doc(db, 'users', user.id));
+
+            // Fetch ownerships
+            const ownershipsQuery = query(collection(db, 'ownerships'), where('userId', '==', user.id));
+            const ownershipsSnap = await getDocs(ownershipsQuery);
+            const ownedGames = ownershipsSnap.docs
+                .filter(doc => new Date(doc.data().expiresAt?.toDate ? doc.data().expiresAt.toDate() : doc.data().expiresAt) > new Date())
+                .map(doc => doc.data().gameId);
+
+            if (userDoc.exists()) {
+                setUser({ id: user.id, ...userDoc.data(), ownedGames });
+            }
+
+            return data;
+        } catch (error) {
+            console.error("Mock checkout error:", error);
+            if (error.name === 'TypeError' && error.message === 'Failed to fetch') {
+                throw new Error("تعذر الاتصال بالخادم. تأكد من تشغيل الـ Backend على منفذ 3001.");
+            }
+            throw error;
         }
-
-        return data;
     };
 
     return (

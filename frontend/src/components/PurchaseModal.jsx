@@ -134,7 +134,15 @@ function PurchaseModal({ isOpen, onClose, game, allGames }) {
                             </div>
                         </div>
 
-                        {error && <p className="text-red-400 mb-4 text-sm bg-red-900/20 p-2 rounded-lg border border-red-500/20 w-full">{error}</p>}
+                        {error && (
+                            <div className="w-full mb-6 bg-rose-500/10 border border-rose-500/20 rounded-2xl p-4 flex items-start gap-3 text-right animate-shake">
+                                <span className="text-xl">⚠️</span>
+                                <div className="flex-1">
+                                    <h4 className="text-rose-400 font-bold text-sm mb-1">حدث خطأ ما</h4>
+                                    <p className="text-rose-200/80 text-xs leading-relaxed">{error}</p>
+                                </div>
+                            </div>
+                        )}
 
                         <button
                             onClick={handlePurchase}
