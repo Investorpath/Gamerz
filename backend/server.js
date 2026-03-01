@@ -13,7 +13,7 @@ const questions = require('./questions.json');
 const jeopardyQuestions = require('./jeopardy_questions.json');
 
 // Import Managers & Games
-const { rooms, initRoom, trackRoomInFirestore, cleanupInactiveRooms } = require('./src/managers/roomManager');
+const { rooms, initRoom, joinRoom, leaveRoom, trackRoomInFirestore, cleanupInactiveRooms } = require('./src/managers/roomManager');
 const trivia = require('./src/games/trivia');
 const imposter = require('./src/games/imposter');
 const charades = require('./src/games/charades');
@@ -33,6 +33,7 @@ const checkoutRoutes = require('./src/routes/checkout');
 const app = express();
 const allowedOrigins = [
     'http://localhost:5173',
+    'http://127.0.0.1:5173',
     'https://gamerz-e22c0.web.app',
     'https://gamerz-e22c0.firebaseapp.com'
 ];
@@ -412,4 +413,10 @@ io.on('connection', (socket) => {
     socket.on('disconnect', () => {
         leaveRoom(io, socket);
     });
+});
+
+const PORT = process.env.PORT || 3001;
+server.listen(PORT, () => {
+    console.log(`Server listening on port ${PORT}`);
+    cleanupInactiveRooms(io);
 });
