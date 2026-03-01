@@ -13,6 +13,7 @@ const COLORS = {
     correct: 'bg-emerald-500 border-emerald-400 text-white shadow-[0_0_20px_rgba(16,185,129,0.3)]',
     misplaced: 'bg-amber-500 border-amber-400 text-white shadow-[0_0_20px_rgba(245,158,11,0.3)]',
     wrong: 'bg-slate-700 border-slate-600 text-slate-300',
+    used: 'opacity-20 grayscale scale-90 pointer-events-none shadow-none border-slate-800 transition-all duration-500',
     empty: 'bg-slate-800/40 border-slate-700/50',
     active: 'bg-slate-800 border-indigo-500 shadow-[0_0_15px_rgba(99,102,241,0.4)] ring-2 ring-indigo-500/20'
 };
@@ -29,6 +30,26 @@ function KalimatApp() {
     const [guessed, setGuessed] = useState(false);
     const [targetReached, setTargetReached] = useState(false);
     const [revealData, setRevealData] = useState(null);
+
+    // Derived State: Letter Statuses for Keyboard
+    const getLetterStatuses = () => {
+        const statuses = {};
+        attempts.forEach(attempt => {
+            attempt.guess.split('').forEach((char, i) => {
+                const hint = attempt.hints[i];
+                if (hint === 'correct') {
+                    statuses[char] = 'correct';
+                } else if (hint === 'misplaced' && statuses[char] !== 'correct') {
+                    statuses[char] = 'misplaced';
+                } else if (hint === 'wrong' && !statuses[char]) {
+                    statuses[char] = 'wrong';
+                }
+            });
+        });
+        return statuses;
+    };
+
+    const letterStatuses = getLetterStatuses();
 
     // Auto-join on mount
     useEffect(() => {
@@ -175,11 +196,18 @@ function KalimatApp() {
                         <div key={rowIdx} className="flex justify-center gap-1 md:gap-2">
                             {row.map(char => {
                                 const isAction = char === 'إرسال' || char === 'حذف';
+                                const status = letterStatuses[char];
+                                let keyColorClass = isAction ? 'bg-indigo-600 border-indigo-800 text-white' : 'bg-slate-800/80 border-slate-950 text-slate-200';
+
+                                if (status === 'correct') keyColorClass = 'bg-emerald-500 border-emerald-600 text-white';
+                                else if (status === 'misplaced') keyColorClass = 'bg-amber-500 border-amber-600 text-white';
+                                else if (status === 'wrong') keyColorClass = COLORS.used;
+
                                 return (
                                     <button
                                         key={char}
                                         onClick={() => handleKeyPress(char)}
-                                        className={`h-11 md:h-14 px-1 md:px-4 rounded-xl font-bold transition-all active:scale-95 shadow-md flex items-center justify-center ${isAction ? 'bg-indigo-600 hover:bg-indigo-500 text-white flex-1 max-w-[120px] text-xs md:text-base border-b-4 border-indigo-800' : 'bg-slate-800/80 hover:bg-slate-700 text-slate-200 min-w-[30px] md:min-w-[48px] border-b-4 border-slate-950'}`}
+                                        className={`h-11 md:h-14 px-1 md:px-4 rounded-xl font-bold transition-all active:scale-95 shadow-md flex items-center justify-center border-b-4 ${keyColorClass} ${isAction ? 'flex-1 max-w-[120px] text-xs md:text-base hover:bg-indigo-500' : 'min-w-[30px] md:min-w-[48px] hover:bg-slate-700'}`}
                                     >
                                         {char === 'حذف' ? '⌫' : char}
                                     </button>
