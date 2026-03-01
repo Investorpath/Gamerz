@@ -61,6 +61,10 @@ function initRoom(roomId, gameType = 'trivia', jeopardyQuestions = []) {
                 room.currentScenarioPairs = null;
                 room.submittedAnswers = [];
                 break;
+            case 'kalimat':
+                room.targetWord = null;
+                room.maxTries = 8;
+                break;
         }
 
         rooms[roomId] = room;

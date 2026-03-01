@@ -22,6 +22,7 @@ const cahoot = require('./src/games/cahoot');
 const seenjeem = require('./src/games/seenjeem');
 const samesame = require('./src/games/samesame');
 const tictactoe = require('./src/games/tictactoe');
+const kalimat = require('./src/games/kalimat');
 
 // Import Routes
 const authRoutes = require('./src/routes/auth');
@@ -205,6 +206,67 @@ io.on('connection', (socket) => {
                 room.currentRound = 1;
                 samesame.startSameSameTurn(io, rooms, roomId, sanitizeInput);
                 break;
+            case 'kalimat':
+                kalimat.startKalimat(io, rooms, roomId);
+                break;
+        }
+    });
+
+    socket.on('kalimat_guess', ({ roomId, guess }) => {
+        const room = rooms[roomId];
+        if (!room || room.status !== 'playing' || room.gameType !== 'kalimat') return;
+
+        const player = room.players[socket.id];
+        if (!player || player.guessed || player.attempts.length >= room.maxTries) return;
+
+        const sanitizedGuess = sanitizeInput(guess).substring(0, 5);
+        if (sanitizedGuess.length !== 5) return;
+
+        const hints = kalimat.checkGuess(sanitizedGuess, room.targetWord);
+        player.attempts.push({ guess: sanitizedGuess, hints });
+
+        if (sanitizedGuess === room.targetWord) {
+            player.guessed = true;
+            player.score = 100 - (player.attempts.length * 10); // Reward faster guesses
+            io.to(roomId).emit('kalimat_player_success', {
+                playerName: player.name,
+                attempts: player.attempts.length
+            });
+        } else if (player.attempts.length >= room.maxTries) {
+            io.to(roomId).emit('kalimat_player_failed', {
+                playerName: player.name
+            });
+        }
+
+        // Sync state to the player
+        socket.emit('kalimat_update', {
+            attempts: player.attempts,
+            guessed: player.guessed,
+            targetReached: player.guessed || player.attempts.length >= room.maxTries
+        });
+
+        // Broadcast player progress to others
+        io.to(roomId).emit('kalimat_progress', {
+            socketId: socket.id,
+            playerName: player.name,
+            attemptsCount: player.attempts.length,
+            guessed: player.guessed
+        });
+
+        // Check if all players are done
+        const allDone = Object.values(room.players).every(p => p.guessed || p.attempts.length >= room.maxTries);
+        if (allDone) {
+            room.status = 'finished';
+            io.to(roomId).emit('game_status', room.status);
+            io.to(roomId).emit('kalimat_reveal', {
+                word: room.targetWord,
+                results: Object.values(room.players).map(p => ({
+                    name: p.name,
+                    score: p.score,
+                    attempts: p.attempts.length,
+                    guessed: p.guessed
+                }))
+            });
         }
     });
 
