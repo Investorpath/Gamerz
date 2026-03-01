@@ -104,7 +104,7 @@ function KalimatApp() {
             }
         } else {
             if (currentGuess.length < 5) {
-                setCurrentGuess(prev => char + prev); // Arabic is RTL, but we'll reflect in UI
+                setCurrentGuess(prev => prev + char);
             }
         }
     };
